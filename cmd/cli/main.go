@@ -11,6 +11,7 @@ import (
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/engine"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/platform"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/provider"
+	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/embedding"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/store"
 	"gopkg.in/yaml.v3"
 )
@@ -22,9 +23,10 @@ type Config struct {
 	BaseBranch  string   `yaml:"base_branch"`
 	IgnorePaths []string `yaml:"ignore_paths"`
 	RAG         struct {
-		Enabled       bool   `yaml:"enabled"`
-		GraphDB       string `yaml:"graph_db"`
-		ConnectionURL string `yaml:"connection_url"`
+		Enabled           bool   `yaml:"enabled"`
+		GraphDB           string `yaml:"graph_db"`
+		ConnectionURL     string `yaml:"connection_url"`
+		EmbeddingProvider string `yaml:"embedding_provider"`
 	} `yaml:"rag"`
 }
 
@@ -103,6 +105,7 @@ func main() {
 	}
 
 	var graphStore store.GraphStore
+	var embedder embedding.EmbeddingProvider
 	if config.RAG.Enabled {
 		neo4jUser := os.Getenv("NEO4J_USER")
 		neo4jPass := os.Getenv("NEO4J_PASS")
@@ -110,9 +113,33 @@ func main() {
 		if err != nil {
 			log.Printf("Warning: failed to initialize graph store: %v. Continuing without RAG.", err)
 		}
+
+		embProvType := os.Getenv("EMBEDDING_PROVIDER")
+		if embProvType == "" {
+			embProvType = config.RAG.EmbeddingProvider
+		}
+		if embProvType == "" {
+			embProvType = "google"
+		}
+
+		switch embProvType {
+		case "google":
+			apiKey := os.Getenv("GEMINI_API_KEY")
+			if apiKey != "" {
+				embedder, err = embedding.NewGoogleEmbeddingProvider(ctx, apiKey, "")
+				if err != nil {
+					log.Printf("Warning: failed to initialize google embedder: %v", err)
+				}
+			}
+		case "openai":
+			apiKey := os.Getenv("OPENAI_API_KEY")
+			if apiKey != "" {
+				embedder = embedding.NewOpenAIEmbeddingProvider(apiKey, "")
+			}
+		}
 	}
 
-	scout := agents.NewScout(aiProvider, plat, graphStore, scoutModel)
+	scout := agents.NewScout(aiProvider, plat, graphStore, embedder, scoutModel)
 	arch := agents.NewArchitect(aiProvider, archModel)
 	dip := agents.NewDiplomat(aiProvider, dipModel)
 
