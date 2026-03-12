@@ -1,18 +1,37 @@
-name: 'Agnostic AI Reviewer'
-description: 'AI-powered code review for Pull Requests'
+name: 'AI Code Reviewer'
+description: 'Runs the Aegis-Wilwatikta AI code reviewer.'
+
 inputs:
-  github_token:
-    description: 'GitHub Token'
-    required: true
-  gemini_api_key:
-    description: 'Gemini API Key'
-    required: false
-  openai_api_key:
-    description: 'OpenAI API Key'
-    required: false
   provider:
-    description: 'AI Provider (gemini or openai)'
-    default: 'gemini'
+    description: 'AI provider to use (gemini or openai)'
+    required: true
+    default: 'openai'
+  platform:
+    description: 'Platform to run the reviewer on (github)'
+    required: true
+    default: 'github'
+  github_token:
+    description: 'GitHub token for API access'
+    required: true
+  openai_api_key:
+    description: 'API key for OpenAI'
+    required: false
+  gemini_api_key:
+    description: 'API key for Gemini'
+    required: false
+  neo4j_uri:
+    description: 'Neo4j connection URI'
+    required: false
+  neo4j_user:
+    description: 'Neo4j username'
+    required: false
+  neo4j_pass:
+    description: 'Neo4j password'
+    required: false
+  neo4j_database:
+    description: 'Neo4j database name'
+    required: false
+
 runs:
   using: 'docker'
   image: 'Dockerfile'
@@ -21,6 +40,6 @@ runs:
     GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
     OPENAI_API_KEY: ${{ inputs.openai_api_key }}
     PROVIDER: ${{ inputs.provider }}
-    PLATFORM: 'github'
+    PLATFORM: ${{ inputs.platform }}
     REPOSITORY_NAME: ${{ github.repository }}
     PR_NUMBER: ${{ github.event.pull_request.number }}
