@@ -67,7 +67,7 @@ func (s *Neo4jStore) UpsertRelation(ctx context.Context, rel domain.CodeRelation
 	WITH a
 	MATCH (b:CodeNode {project_id: $project_id})
 	WHERE b.id = $to OR b.name = $to
-	MERGE (a)-[r:%s]->(b)
+	MERGE (a)-[r:%s {project_id: $project_id}]->(b)
 	`, rel.Type)
 
 	params := map[string]interface{}{

@@ -33,10 +33,10 @@ type PullRequest struct {
 }
 
 type ReviewComment struct {
-	File      string   `json:"file"`
-	Position  int      `json:"position"`
-	Severity  Severity `json:"severity"`
-	Issue     string   `json:"issue"`
+	File       string   `json:"file"`
+	Line       int      `json:"line"`
+	Severity   Severity `json:"severity"`
+	Issue      string   `json:"issue"`
 	Suggestion string   `json:"suggestion"`
 }
 

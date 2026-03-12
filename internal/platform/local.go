@@ -55,7 +55,7 @@ func (l *LocalPlatform) PostReview(ctx context.Context, owner, repo string, prNu
 	fmt.Printf("Summary: %s\n", review.Summary)
 	fmt.Printf("Comments:\n")
 	for _, c := range review.Reviews {
-		fmt.Printf("- %s:%d [%s] %s\n  Suggestion: %s\n", c.File, c.Position, c.Severity, c.Issue, c.Suggestion)
+		fmt.Printf("- %s:%d [%s] %s\n  Suggestion: %s\n", c.File, c.Line, c.Severity, c.Issue, c.Suggestion)
 	}
 	fmt.Printf("---------------------------\n")
 	return nil

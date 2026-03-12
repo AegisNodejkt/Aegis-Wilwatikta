@@ -55,11 +55,11 @@ func (g *GitHubPlatform) GetPullRequest(ctx context.Context, owner, repo string,
 func (g *GitHubPlatform) PostReview(ctx context.Context, owner, repo string, prNumber int, review *domain.ReviewResult) error {
 	var comments []*github.DraftReviewComment
 	for _, r := range review.Reviews {
-		position := r.Position
 		comments = append(comments, &github.DraftReviewComment{
-			Path:     github.String(r.File),
-			Body:     github.String(fmt.Sprintf("**[%s]** %s\n\n> %s", r.Severity, r.Issue, r.Suggestion)),
-			Position: github.Int(position),
+			Path: github.String(r.File),
+			Body: github.String(fmt.Sprintf("**[%s]** %s\n\n> %s", r.Severity, r.Issue, r.Suggestion)),
+			Line: github.Int(r.Line),
+			Side: github.String("RIGHT"),
 		})
 	}
 

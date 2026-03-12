@@ -55,7 +55,7 @@ func (a *Architect) Review(ctx context.Context, pr *domain.PullRequest, addition
 	### Output Constraint
 	You MUST return a valid JSON array of issues. Do NOT add any introductory text or explanations outside the JSON structure. Each issue object in the array must contain:
 	- "file_path" (string): The full path of the file where the issue was found.
-	- "position_in_diff" (int): The line number within the provided diff where the issue is located.
+	- "line_number" (int): The absolute line number in the new version of the file where the issue is located.
 	- "severity" (string): The impact level, must be one of: CRITICAL, MAJOR, MINOR.
 	- "issue_description" (string): A concise, technical explanation of the problem.
 	- "refactor_suggestion" (string): A concrete code snippet or clear instruction on how to fix the issue.
@@ -64,7 +64,7 @@ func (a *Architect) Review(ctx context.Context, pr *domain.PullRequest, addition
 	[
 	  {
 	    "file_path": "internal/service/auth.go",
-	    "position_in_diff": 15,
+	    "line_number": 15,
 	    "severity": "CRITICAL",
 	    "issue_description": "Potential SQL Injection vulnerability due to string concatenation in a query.",
 	    "refactor_suggestion": "Use a parameterized query or a query builder instead of fmt.Sprintf to construct the SQL query."
