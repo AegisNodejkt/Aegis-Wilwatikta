@@ -2,6 +2,8 @@ package parser
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -92,14 +94,14 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 	var nodes []domain.CodeNode
 	var relations []domain.CodeRelation
 
-	// Add file node
+	// Add file node (placeholder, will fill hash later)
 	fileNodeID := path
-	nodes = append(nodes, domain.CodeNode{
+	fileNode := domain.CodeNode{
 		ID:   fileNodeID,
 		Name: filepath.Base(path),
 		Kind: domain.KindFile,
 		Path: path,
-	})
+	}
 
 	type defInfo struct {
 		id    string
@@ -107,6 +109,11 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 		end   uint32
 	}
 	var defs []defInfo
+
+	allSignatures := ""
+	fileHasher := sha256.New()
+	fileHasher.Write(content)
+	contentHash := hex.EncodeToString(fileHasher.Sum(nil))
 
 	// First pass: collect all definitions
 	cursor.Exec(q, root)
@@ -155,13 +162,27 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 				signature = string(content[capture.Node.StartByte():capture.Node.EndByte()])
 			}
 
+			trimmedSignature := strings.TrimSpace(signature)
+			allSignatures += trimmedSignature
+
+			nodeHasher := sha256.New()
+			nodeHasher.Write([]byte(trimmedSignature))
+			sigHash := hex.EncodeToString(nodeHasher.Sum(nil))
+
+			nodeContent := string(content[capture.Node.StartByte():capture.Node.EndByte()])
+			nodeContentHasher := sha256.New()
+			nodeContentHasher.Write([]byte(nodeContent))
+			nodeContentHash := hex.EncodeToString(nodeContentHasher.Sum(nil))
+
 			nodes = append(nodes, domain.CodeNode{
-				ID:        nodeID,
-				Name:      name,
-				Kind:      kind,
-				Path:      path,
-				Signature: strings.TrimSpace(signature),
-				Content:   string(content[capture.Node.StartByte():capture.Node.EndByte()]),
+				ID:            nodeID,
+				Name:          name,
+				Kind:          kind,
+				Path:          path,
+				Signature:     trimmedSignature,
+				SignatureHash: sigHash,
+				Content:       nodeContent,
+				ContentHash:   nodeContentHash,
 			})
 
 			defs = append(defs, defInfo{
@@ -178,6 +199,13 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 			})
 		}
 	}
+
+	// Calculate aggregate signature hash for the file
+	aggHasher := sha256.New()
+	aggHasher.Write([]byte(allSignatures))
+	fileNode.SignatureHash = hex.EncodeToString(aggHasher.Sum(nil))
+	fileNode.ContentHash = contentHash
+	nodes = append([]domain.CodeNode{fileNode}, nodes...)
 
 	// Second pass: collect relations (imports and calls)
 	cursor.Exec(q, root)

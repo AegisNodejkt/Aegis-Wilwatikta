@@ -17,4 +17,8 @@ type GraphStore interface {
 	QueryContext(ctx context.Context, filePath string) ([]domain.CodeNode, error)
 	// FindRelatedByEmbedding retrieves nodes that are semantically similar
 	FindRelatedByEmbedding(ctx context.Context, embedding []float32, limit int) ([]domain.CodeNode, error)
+	// GetFileHash retrieves the stored hash for a file node
+	GetFileHash(ctx context.Context, path string) (string, error)
+	// DeleteNodesByFile removes all nodes and relations associated with a file
+	DeleteNodesByFile(ctx context.Context, path string) error
 }

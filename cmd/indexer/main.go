@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aegis-wilwatikta/ai-reviewer/internal/domain"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/embedding"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/parser"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/store"
@@ -102,7 +103,6 @@ func main() {
 }
 
 func indexFile(ctx context.Context, path string, cp *parser.TSParser, emb embedding.EmbeddingProvider, graph store.GraphStore) error {
-	fmt.Printf("Indexing %s...\n", path)
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -111,6 +111,30 @@ func indexFile(ctx context.Context, path string, cp *parser.TSParser, emb embedd
 	nodes, relations, err := cp.ParseFile(ctx, path, content)
 	if err != nil {
 		return err
+	}
+
+	// Find the file node
+	var fileNode domain.CodeNode
+	for _, n := range nodes {
+		if n.Kind == domain.KindFile {
+			fileNode = n
+			break
+		}
+	}
+
+	// Check if file has changed structurally
+	oldHash, err := graph.GetFileHash(ctx, path)
+	if err == nil && oldHash == fileNode.SignatureHash {
+		fmt.Printf("Skipping %s (no structural changes)\n", path)
+		return nil
+	}
+
+	fmt.Printf("Indexing %s...\n", path)
+
+	// Prune old nodes before re-indexing (except the file node itself which we'll upsert)
+	err = graph.DeleteNodesByFile(ctx, path)
+	if err != nil {
+		log.Printf("warning: failed to prune old nodes for %s: %v", path, err)
 	}
 
 	var signatures []string

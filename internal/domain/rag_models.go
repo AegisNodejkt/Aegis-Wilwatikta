@@ -25,13 +25,15 @@ const (
 
 // CodeNode represents an entity in the codebase (func, struct, etc.)
 type CodeNode struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	Kind      NodeKind `json:"kind"`
-	Path      string   `json:"path"`
-	Signature string   `json:"signature"`
-	Content   string   `json:"content"` // Source code snippet
-	Embedding []float32 `json:"embedding,omitempty"`
+	ID            string    `json:"id"`
+	Name          string    `json:"name"`
+	Kind          NodeKind  `json:"kind"`
+	Path          string    `json:"path"`
+	Signature     string    `json:"signature"`
+	SignatureHash string    `json:"signature_hash,omitempty"`
+	Content       string    `json:"content"` // Source code snippet
+	ContentHash   string    `json:"content_hash,omitempty"`
+	Embedding     []float32 `json:"embedding,omitempty"`
 }
 
 // CodeRelation connects two CodeNodes
@@ -52,8 +54,9 @@ type Snippet struct {
 
 // ImpactReport details the downstream effects of a change
 type ImpactReport struct {
-	TargetNode    CodeNode       `json:"target_node"`
-	AffectedNodes []AffectedNode `json:"affected_nodes"`
+	TargetNode       CodeNode       `json:"target_node"`
+	AffectedNodes    []AffectedNode `json:"affected_nodes"`
+	BlastRadiusScore int            `json:"blast_radius_score"`
 }
 
 type AffectedNode struct {

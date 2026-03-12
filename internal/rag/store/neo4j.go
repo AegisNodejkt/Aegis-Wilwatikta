@@ -32,17 +32,21 @@ func (s *Neo4jStore) UpsertNode(ctx context.Context, node domain.CodeNode) error
 	    n.kind = $kind,
 	    n.path = $path,
 	    n.signature = $signature,
+	    n.signature_hash = $signature_hash,
 	    n.content = $content,
+	    n.content_hash = $content_hash,
 	    n.embedding = $embedding
 	`
 	params := map[string]interface{}{
-		"id":        node.ID,
-		"name":      node.Name,
-		"kind":      string(node.Kind),
-		"path":      node.Path,
-		"signature": node.Signature,
-		"content":   node.Content,
-		"embedding": node.Embedding,
+		"id":             node.ID,
+		"name":           node.Name,
+		"kind":           string(node.Kind),
+		"path":           node.Path,
+		"signature":      node.Signature,
+		"signature_hash": node.SignatureHash,
+		"content":        node.Content,
+		"content_hash":   node.ContentHash,
+		"embedding":      node.Embedding,
 	}
 
 	_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
@@ -82,14 +86,18 @@ func (s *Neo4jStore) GetImpactContext(ctx context.Context, filePath string) (*do
 
 	query := `
 	MATCH (target:CodeNode {path: $path})
+	WHERE target.kind <> 'FILE'
 	OPTIONAL MATCH (affected:CodeNode)-[r:CALLS|IMPLEMENTS|USES*1..2]->(target)
+	WITH target, affected, r
+	OPTIONAL MATCH (all_affected:CodeNode)-[:CALLS|IMPLEMENTS|USES]->(target)
 	RETURN
 		target,
 		collect({
 			node: affected,
 			relation: type(r[0]),
 			depth: length(r)
-		}) AS impact_list
+		}) AS impact_list,
+		count(DISTINCT all_affected) AS blast_radius
 	`
 	params := map[string]interface{}{
 		"path": filePath,
@@ -108,9 +116,12 @@ func (s *Neo4jStore) GetImpactContext(ctx context.Context, filePath string) (*do
 			impactListRaw, _ := record.Get("impact_list")
 
 			targetNode := s.mapNode(targetMap.(neo4j.Node))
+			blastRadius, _ := record.Get("blast_radius")
+
 			if finalReport == nil {
 				finalReport = &domain.ImpactReport{
-					TargetNode: targetNode,
+					TargetNode:       targetNode,
+					BlastRadiusScore: int(blastRadius.(int64)),
 				}
 			}
 
@@ -147,6 +158,49 @@ func (s *Neo4jStore) GetImpactContext(ctx context.Context, filePath string) (*do
 
 func (s *Neo4jStore) QueryContext(ctx context.Context, filePath string) ([]domain.CodeNode, error) {
 	return nil, nil
+}
+
+func (s *Neo4jStore) GetFileHash(ctx context.Context, path string) (string, error) {
+	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: s.databaseName})
+	defer session.Close(ctx)
+
+	query := `MATCH (f:CodeNode {id: $id, kind: 'FILE'}) RETURN f.signature_hash AS hash`
+	params := map[string]interface{}{"id": path}
+
+	result, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
+		res, err := tx.Run(ctx, query, params)
+		if err != nil {
+			return "", err
+		}
+		if res.Next(ctx) {
+			val, _ := res.Record().Get("hash")
+			if s, ok := val.(string); ok {
+				return s, nil
+			}
+		}
+		return "", nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return result.(string), nil
+}
+
+func (s *Neo4jStore) DeleteNodesByFile(ctx context.Context, path string) error {
+	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite, DatabaseName: s.databaseName})
+	defer session.Close(ctx)
+
+	query := `
+	MATCH (n:CodeNode {path: $path})
+	WHERE n.kind <> 'FILE'
+	DETACH DELETE n
+	`
+	params := map[string]interface{}{"path": path}
+
+	_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
+		return tx.Run(ctx, query, params)
+	})
+	return err
 }
 
 func (s *Neo4jStore) FindRelatedByEmbedding(ctx context.Context, embedding []float32, limit int) ([]domain.CodeNode, error) {
@@ -191,12 +245,14 @@ func (s *Neo4jStore) FindRelatedByEmbedding(ctx context.Context, embedding []flo
 func (s *Neo4jStore) mapNode(n neo4j.Node) domain.CodeNode {
 	props := n.GetProperties()
 	return domain.CodeNode{
-		ID:        s.getString(props, "id"),
-		Name:      s.getString(props, "name"),
-		Kind:      domain.NodeKind(s.getString(props, "kind")),
-		Path:      s.getString(props, "path"),
-		Signature: s.getString(props, "signature"),
-		Content:   s.getString(props, "content"),
+		ID:            s.getString(props, "id"),
+		Name:          s.getString(props, "name"),
+		Kind:          domain.NodeKind(s.getString(props, "kind")),
+		Path:          s.getString(props, "path"),
+		Signature:     s.getString(props, "signature"),
+		SignatureHash: s.getString(props, "signature_hash"),
+		Content:       s.getString(props, "content"),
+		ContentHash:   s.getString(props, "content_hash"),
 	}
 }
 
