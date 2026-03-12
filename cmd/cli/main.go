@@ -11,6 +11,7 @@ import (
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/engine"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/platform"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/provider"
+	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/store"
 	"gopkg.in/yaml.v3"
 )
 
@@ -20,6 +21,11 @@ type Config struct {
 	OpenAIModel string   `yaml:"openai_model"`
 	BaseBranch  string   `yaml:"base_branch"`
 	IgnorePaths []string `yaml:"ignore_paths"`
+	RAG         struct {
+		Enabled       bool   `yaml:"enabled"`
+		GraphDB       string `yaml:"graph_db"`
+		ConnectionURL string `yaml:"connection_url"`
+	} `yaml:"rag"`
 }
 
 func main() {
@@ -96,7 +102,17 @@ func main() {
 		dipModel = getModelForProvider(providerType, config, "flash")
 	}
 
-	scout := agents.NewScout(aiProvider, plat, scoutModel)
+	var graphStore store.GraphStore
+	if config.RAG.Enabled {
+		neo4jUser := os.Getenv("NEO4J_USER")
+		neo4jPass := os.Getenv("NEO4J_PASS")
+		graphStore, err = store.NewNeo4jStore(config.RAG.ConnectionURL, neo4jUser, neo4jPass)
+		if err != nil {
+			log.Printf("Warning: failed to initialize graph store: %v. Continuing without RAG.", err)
+		}
+	}
+
+	scout := agents.NewScout(aiProvider, plat, graphStore, scoutModel)
 	arch := agents.NewArchitect(aiProvider, archModel)
 	dip := agents.NewDiplomat(aiProvider, dipModel)
 

@@ -5,7 +5,9 @@ go 1.25.0
 require (
 	github.com/google/generative-ai-go v0.20.1
 	github.com/google/go-github/v60 v60.0.0
+	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
 	github.com/sashabaranov/go-openai v1.41.2
+	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82
 	golang.org/x/oauth2 v0.36.0
 	google.golang.org/api v0.271.0
 	gopkg.in/yaml.v3 v3.0.1

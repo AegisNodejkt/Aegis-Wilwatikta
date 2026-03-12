@@ -9,21 +9,48 @@ import (
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/domain"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/platform"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/provider"
+	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/store"
 )
 
 type Scout struct {
-	provider provider.AIProvider
-	platform platform.Platform
-	model    string
+	provider   provider.AIProvider
+	platform   platform.Platform
+	graphStore store.GraphStore
+	model      string
 }
 
-func NewScout(p provider.AIProvider, plat platform.Platform, model string) *Scout {
-	return &Scout{provider: p, platform: plat, model: model}
+func NewScout(p provider.AIProvider, plat platform.Platform, gs store.GraphStore, model string) *Scout {
+	return &Scout{
+		provider:   p,
+		platform:   plat,
+		graphStore: gs,
+		model:      model,
+	}
 }
 
-func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domain.PullRequest) (string, error) {
-	// 1. Heuristic context gathering (simple regex for imports/mentions)
-	relatedFiles := s.findRelatedFiles(pr)
+func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domain.PullRequest) (string, []*domain.ImpactReport, error) {
+	var relatedFiles []string
+	var reports []*domain.ImpactReport
+
+	// 1. RAG-based context gathering (Primary)
+	if s.graphStore != nil {
+		for _, diff := range pr.Diffs {
+			impact, err := s.graphStore.GetImpactContext(ctx, diff.Path)
+			if err == nil && impact != nil {
+				reports = append(reports, impact)
+				for _, affected := range impact.AffectedNodes {
+					relatedFiles = append(relatedFiles, affected.Node.Path)
+				}
+			}
+		}
+	}
+
+	// 2. Heuristic context gathering (Fallback/Secondary)
+	heuristicFiles := s.findRelatedFiles(pr)
+	relatedFiles = append(relatedFiles, heuristicFiles...)
+
+	// Remove duplicates
+	relatedFiles = s.uniqueStrings(relatedFiles)
 
 	// 2. LLM decision on which files are actually relevant
 	systemPrompt := `You are "The Scout", a context optimization agent.
@@ -35,12 +62,12 @@ Example output: internal/auth.go, internal/models.go`
 	userPrompt := fmt.Sprintf("PR Title: %s\nPR Description: %s\nPotential related files: %v\n\nWhich of these should I fetch for more context?", pr.Title, pr.Description, relatedFiles)
 
 	if len(relatedFiles) == 0 {
-		return "", nil
+		return "", reports, nil
 	}
 
 	response, err := s.provider.SendMessage(ctx, systemPrompt, userPrompt, s.model)
 	if err != nil {
-		return "", err
+		return "", reports, err
 	}
 
 	// Extract filenames using regex to be more robust against conversational filler
@@ -53,7 +80,7 @@ Example output: internal/auth.go, internal/models.go`
 		}
 	}
 
-	return additionalContext.String(), nil
+	return additionalContext.String(), reports, nil
 }
 
 func (s *Scout) findRelatedFiles(pr *domain.PullRequest) []string {
@@ -74,6 +101,18 @@ func (s *Scout) findRelatedFiles(pr *domain.PullRequest) []string {
 		related = append(related, k)
 	}
 	return related
+}
+
+func (s *Scout) uniqueStrings(input []string) []string {
+	keys := make(map[string]bool)
+	var list []string
+	for _, entry := range input {
+		if _, value := keys[entry]; !value {
+			keys[entry] = true
+			list = append(list, entry)
+		}
+	}
+	return list
 }
 
 func (s *Scout) extractFilenames(response string) []string {
