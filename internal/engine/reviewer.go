@@ -70,7 +70,7 @@ func (e *ReviewerEngine) RunReview(ctx context.Context, owner, repo string, prNu
 
 	// 5. Post Review back to Platform
 	fmt.Println("Posting review to platform...")
-	err = e.Platform.PostReview(ctx, owner, repo, prNumber, reviewResult)
+	err = e.Platform.PostReview(ctx, owner, repo, pr, reviewResult)
 	if err != nil {
 		return fmt.Errorf("failed to post review: %w", err)
 	}

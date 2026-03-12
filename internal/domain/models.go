@@ -28,6 +28,7 @@ type PullRequest struct {
 	Description    string
 	BaseBranch     string
 	HeadBranch     string
+	HeadSHA        string
 	Diffs          []FileDiff
 	PreviousReview *ReviewResult
 }

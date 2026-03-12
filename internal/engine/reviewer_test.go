@@ -17,7 +17,7 @@ func (m *MockPlatform) GetPullRequest(ctx context.Context, owner, repo string, p
 		Diffs: []domain.FileDiff{{Path: "main.go", Content: "diff content"}},
 	}, nil
 }
-func (m *MockPlatform) PostReview(ctx context.Context, owner, repo string, prNumber int, review *domain.ReviewResult) error {
+func (m *MockPlatform) PostReview(ctx context.Context, owner, repo string, pr *domain.PullRequest, review *domain.ReviewResult) error {
 	return nil
 }
 func (m *MockPlatform) GetFileContent(ctx context.Context, owner, repo, path, ref string) (string, error) {

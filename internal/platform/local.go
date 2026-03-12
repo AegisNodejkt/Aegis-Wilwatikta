@@ -49,7 +49,7 @@ func (l *LocalPlatform) GetPullRequest(ctx context.Context, owner, repo string, 
 	}, nil
 }
 
-func (l *LocalPlatform) PostReview(ctx context.Context, owner, repo string, prNumber int, review *domain.ReviewResult) error {
+func (l *LocalPlatform) PostReview(ctx context.Context, owner, repo string, pr *domain.PullRequest, review *domain.ReviewResult) error {
 	fmt.Printf("\n--- LOCAL REVIEW RESULT ---\n")
 	fmt.Printf("Verdict: %s\n", review.Verdict)
 	fmt.Printf("Summary: %s\n", review.Summary)

@@ -54,7 +54,7 @@ You MUST output a single, valid JSON object. Do not include any text outside of 
   "reviews": [
     {
       "file": "path/to/file.go",
-      "line": 42, // The absolute line number in the new file
+      "line": 42, // The absolute line number in the new file. MUST be positive and mapped from Architect's line_number.
       "severity": "CRITICAL" | "MAJOR" | "MINOR",
       "issue": "A concise description of the problem.",
       "suggestion": "A clear, actionable suggestion for how to fix it."

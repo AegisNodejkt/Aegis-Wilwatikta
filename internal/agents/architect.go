@@ -60,6 +60,8 @@ func (a *Architect) Review(ctx context.Context, pr *domain.PullRequest, addition
 	- "issue_description" (string): A concise, technical explanation of the problem.
 	- "refactor_suggestion" (string): A concrete code snippet or clear instruction on how to fix the issue.
 
+	CRITICAL: You must only provide review comments for lines that are explicitly marked with a + in the provided diff. Do not attempt to review code that is not part of the current changes. If you find a global issue, put it in the PR Summary instead of an inline comment.
+
 	### Example
 	[
 	  {

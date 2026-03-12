@@ -43,7 +43,7 @@ func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domai
 	if pr.PreviousReview != nil {
 		historicalContext = "\n--- PREVIOUS REVIEW UNRESOLVED ISSUES ---\n"
 		for _, r := range pr.PreviousReview.Reviews {
-			if r.Severity == domain.SeverityHigh || r.Severity == domain.SeverityCritical {
+			if r.Severity == domain.SeverityMedium || r.Severity == domain.SeverityHigh || r.Severity == domain.SeverityCritical {
 				historicalContext += fmt.Sprintf("- [%s] %s in %s\n", r.Severity, r.Issue, r.File)
 				relatedFiles = append(relatedFiles, r.File)
 			}
