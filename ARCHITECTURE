@@ -1,0 +1,47 @@
+# ARCHITECTURE.md: Agnostic AI Reviewer
+
+This document describes the architectural design of the AI Reviewer. The system is built to be **Orchestrator-Agnostic** (works on GitHub, GitLab, or Local) and **Model-Agnostic** (supports Gemini, OpenAI, etc.).
+
+---
+
+## 1. High-Level Design
+
+The system follows a **Hexagonal Architecture** (Ports and Adapters) to ensure that the core logic is decoupled from external providers.
+
+### Core Components:
+1.  **The Runner (CMD):** The entry point that initializes adapters based on environment variables.
+2.  **The Engine (Core):** Orchestrates the flow between the Platform and the Agents.
+3.  **The Agents (Domain):** Encapsulated logic for Scout, Architect, and Diplomat roles.
+4.  **The Adapters (Infrastructure):** Concrete implementations for specific APIs (GitHub API, Gemini SDK).
+
+---
+
+## 2. Project Structure
+
+The project is organized to separate concerns and allow easy swapping of providers.
+
+```text
+ai-reviewer/
+├── cmd/
+│   └── cli/                # Entry point (Initializes Platform & AI Adapters)
+├── internal/
+│   ├── platform/           # Infrastructure: Platform Adapters (Ports)
+│   │   ├── platform.go     # Interface definition for any CI/CD platform
+│   │   ├── github.go       # GitHub implementation (API v3/v4)
+│   │   └── local.go        # Local filesystem implementation (for testing)
+│   ├── provider/           # Infrastructure: AI Provider Adapters (Ports)
+│   │   ├── provider.go     # Interface definition for any LLM provider
+│   │   ├── gemini.go       # Google Gemini implementation
+│   │   └── openai.go       # OpenAI implementation
+│   ├── engine/             # Domain: Core Orchestration Logic
+│   │   └── reviewer.go     # Coordinates Scout -> Architect -> Diplomat flow
+│   ├── agents/             # Domain: Agent Personas & Instructions
+│   │   ├── scout.go        # Context gathering logic
+│   │   ├── architect.go    # Technical review logic
+│   │   └── diplomat.go     # Feedback formatting logic
+│   └── domain/             # Domain: Entities & Value Objects
+│       └── models.go       # Shared structs (Diff, Comment, Verdict)
+├── action.yml              # GitHub Action Metadata
+├── Dockerfile              # Containerization for "Uses" workflow
+├── go.mod                  # Dependencies
+└── README.md
