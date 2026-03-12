@@ -35,7 +35,7 @@ func (e *ReviewerEngine) RunReview(ctx context.Context, owner, repo string, prNu
 
 	// 2. Scout Phase: Gather Context
 	fmt.Println("Scout is gathering context...")
-	additionalContext, err := e.Scout.GatherContext(ctx, owner, repo, pr)
+	additionalContext, reports, err := e.Scout.GatherContext(ctx, owner, repo, pr)
 	if err != nil {
 		fmt.Printf("Warning: Scout context gathering failed: %v\n", err)
 		// We can still proceed with just the diff
@@ -50,7 +50,11 @@ func (e *ReviewerEngine) RunReview(ctx context.Context, owner, repo string, prNu
 
 	// 4. Diplomat Phase: Formatting
 	fmt.Println("Diplomat is formatting feedback...")
-	reviewResult, err := e.Diplomat.FormatReview(ctx, rawReview)
+
+	aggregated := agents.AggregateImpacts(reports)
+	healthScore := agents.CalculateHealthScore(aggregated)
+
+	reviewResult, err := e.Diplomat.FormatReview(ctx, rawReview, aggregated, healthScore)
 	if err != nil {
 		return fmt.Errorf("diplomat formatting failed: %w", err)
 	}
