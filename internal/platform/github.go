@@ -93,3 +93,11 @@ func (g *GitHubPlatform) GetFileContent(ctx context.Context, owner, repo, path, 
 	}
 	return content, nil
 }
+
+func (g *GitHubPlatform) GetLastReview(ctx context.Context, owner, repo string, prNumber int) (*domain.ReviewResult, error) {
+	// In a real implementation, we would fetch the last review from GitHub
+	// and parse it back into domain.ReviewResult.
+	// For now, this is a placeholder as the actual implementation would involve
+	// complex parsing of Markdown comments.
+	return nil, nil
+}

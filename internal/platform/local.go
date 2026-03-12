@@ -70,6 +70,10 @@ func (l *LocalPlatform) GetFileContent(ctx context.Context, owner, repo, path, r
 	return string(contentBytes), nil
 }
 
+func (l *LocalPlatform) GetLastReview(ctx context.Context, owner, repo string, prNumber int) (*domain.ReviewResult, error) {
+	return nil, nil
+}
+
 func parseGitDiff(diffStr string) []domain.FileDiff {
 	var diffs []domain.FileDiff
 	files := strings.Split(diffStr, "diff --git ")

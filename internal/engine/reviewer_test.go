@@ -23,6 +23,9 @@ func (m *MockPlatform) PostReview(ctx context.Context, owner, repo string, prNum
 func (m *MockPlatform) GetFileContent(ctx context.Context, owner, repo, path, ref string) (string, error) {
 	return "mock content", nil
 }
+func (m *MockPlatform) GetLastReview(ctx context.Context, owner, repo string, prNumber int) (*domain.ReviewResult, error) {
+	return nil, nil
+}
 
 type MockAIProvider struct {
 	Response string
@@ -43,7 +46,7 @@ func TestReviewerEngine_RunReview(t *testing.T) {
 		}`,
 	}
 
-	scout := agents.NewScout(mockAI, mockPlat, nil, nil, "test-model")
+	scout := agents.NewScout(mockAI, mockPlat, nil, nil, "test-model", "test-project")
 	arch := agents.NewArchitect(mockAI, "test-model")
 	dip := agents.NewDiplomat(mockAI, "test-model")
 

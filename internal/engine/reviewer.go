@@ -33,6 +33,15 @@ func (e *ReviewerEngine) RunReview(ctx context.Context, owner, repo string, prNu
 		return fmt.Errorf("failed to fetch PR: %w", err)
 	}
 
+	// 1.5 Fetch Previous Review
+	fmt.Println("Fetching last review context...")
+	lastReview, err := e.Platform.GetLastReview(ctx, owner, repo, prNumber)
+	if err != nil {
+		fmt.Printf("Warning: failed to fetch last review: %v\n", err)
+	} else {
+		pr.PreviousReview = lastReview
+	}
+
 	// 2. Scout Phase: Gather Context
 	fmt.Println("Scout is gathering context...")
 	additionalContext, reports, err := e.Scout.GatherContext(ctx, owner, repo, pr)

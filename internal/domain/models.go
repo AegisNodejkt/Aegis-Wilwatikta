@@ -23,12 +23,13 @@ type FileDiff struct {
 }
 
 type PullRequest struct {
-	ID          int
-	Title       string
-	Description string
-	BaseBranch  string
-	HeadBranch  string
-	Diffs       []FileDiff
+	ID             int
+	Title          string
+	Description    string
+	BaseBranch     string
+	HeadBranch     string
+	Diffs          []FileDiff
+	PreviousReview *ReviewResult
 }
 
 type ReviewComment struct {

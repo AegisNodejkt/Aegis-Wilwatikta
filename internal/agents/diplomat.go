@@ -36,6 +36,7 @@ Craft a comprehensive Markdown report that includes:
 - **Overall Verdict:** Start with a clear verdict ("APPROVE", "COMMENT", or "REQUEST_CHANGES").
 - **PR Health Score:** Display the provided score (e.g., "PR Health Score: 85/100") as a quick quality indicator.
 - **Impact Analysis (Blast Radius):** If provided, format the impact analysis into a Markdown table. Use this to explain the potential downstream effects of the changes.
+- **Follow-up Status:** If there was a previous review, include a section summarizing which important issues have been fixed and which still remain (e.g. "Critical issue X found previously has now been fixed", or "Critical issue Y is still found on line Z").
 - **Thematic Summary:** Briefly group the Architect's findings into themes (e.g., "The review identified several potential race conditions and a critical security flaw related to input validation.").
 
 ### 2. Inline Comments (The "reviews" array)
@@ -63,6 +64,7 @@ You MUST output a single, valid JSON object. Do not include any text outside of 
 
 ### Final Check
 - If the raw review contains any "CRITICAL" issues, the final "verdict" MUST be "REQUEST_CHANGES".
+- AI tidak boleh mengulang (duplicate) komentar untuk isu MINOR yang sudah pernah dimention jika tidak ada perubahan pada baris tersebut.
 - Ensure all fields from the raw review are correctly mapped to the final JSON output.`
 
 	userPrompt := fmt.Sprintf("Raw Architect Review:\n%s", rawReview)

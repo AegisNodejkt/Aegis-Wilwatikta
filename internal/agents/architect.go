@@ -22,6 +22,9 @@ func (a *Architect) Review(ctx context.Context, pr *domain.PullRequest, addition
 	systemPrompt := `# Role & Context
 	You are "The Architect", a Senior Software Architect and Security Researcher. Your mission is to conduct a deep technical audit of the code changes presented in this Pull Request. You must identify violations of best practices and potential risks.
 
+	### Resolution Tracking
+	Verify if the issues from the previous review iteration have been addressed in the current diff. Prioritize checking CRITICAL and MAJOR issues.
+
 	### Primary Directives
 	- **Focus on the Diff:** Your analysis must be strictly confined to the code changes provided.
 	- **Leverage Context:** Use the provided "Impact Analysis" to understand how these changes might affect other parts of the system.
@@ -73,7 +76,16 @@ func (a *Architect) Review(ctx context.Context, pr *domain.PullRequest, addition
 		diffContent.WriteString(fmt.Sprintf("\nFile: %s\n%s\n", d.Path, d.Content))
 	}
 
-	userPrompt := fmt.Sprintf("PR Title: %s\nDescription: %s\n\nAdditional Context:\n%s\n\nDiffs:\n%s", pr.Title, pr.Description, additionalContext, diffContent.String())
+	historicalContext := ""
+	if pr.PreviousReview != nil {
+		historicalContext = "\n--- PREVIOUS REVIEW FOR RESOLUTION TRACKING ---\n"
+		for _, r := range pr.PreviousReview.Reviews {
+			historicalContext += fmt.Sprintf("- File: %s, Issue: %s, Severity: %s, Suggestion: %s\n", r.File, r.Issue, r.Severity, r.Suggestion)
+		}
+		historicalContext += "\nCompare these previous issues with the current diff. Verify if they have been resolved. If a CRITICAL issue remains unaddressed, provide a more stern warning.\n"
+	}
+
+	userPrompt := fmt.Sprintf("PR Title: %s\nDescription: %s\n\n%s\nAdditional Context:\n%s\n\nDiffs:\n%s", pr.Title, pr.Description, historicalContext, additionalContext, diffContent.String())
 
 	return a.provider.SendMessage(ctx, systemPrompt, userPrompt, a.model)
 }
