@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -17,9 +18,16 @@ import (
 func main() {
 	ctx := context.Background()
 
-	var targetFiles []string
-	if len(os.Args) > 1 {
-		targetFiles = os.Args[1:]
+	var projectIDFlag string
+	flag.StringVar(&projectIDFlag, "project-id", "", "ID of the project")
+	flag.Parse()
+
+	command := flag.Arg(0)
+	targetFiles := flag.Args()
+	if command != "cleanup" {
+		targetFiles = flag.Args()
+	} else {
+		targetFiles = nil
 	}
 
 	// Configuration (In production, these come from Env/YAML)
@@ -69,6 +77,24 @@ func main() {
 		log.Fatalf("failed to init graph store: %v", err)
 	}
 
+	projectID := os.Getenv("PROJECT_ID")
+	if projectID == "" {
+		projectID = projectIDFlag
+	}
+	if projectID == "" {
+		projectID = deriveProjectID()
+	}
+
+	if command == "cleanup" {
+		fmt.Printf("Cleaning up project %s...\n", projectID)
+		err = graph.DeleteNodesByProject(ctx, projectID)
+		if err != nil {
+			log.Fatalf("cleanup failed: %v", err)
+		}
+		fmt.Println("Cleanup completed.")
+		return
+	}
+
 	codeParser := parser.NewTSParser()
 
 	// Crawl and Index
@@ -77,7 +103,7 @@ func main() {
 			if !codeParser.Supports(filepath.Ext(path)) {
 				continue
 			}
-			err = indexFile(ctx, path, codeParser, embedder, graph)
+			err = indexFile(ctx, projectID, path, codeParser, embedder, graph)
 			if err != nil {
 				log.Printf("failed to index %s: %v", path, err)
 			}
@@ -91,7 +117,7 @@ func main() {
 				return nil
 			}
 
-			return indexFile(ctx, path, codeParser, embedder, graph)
+			return indexFile(ctx, projectID, path, codeParser, embedder, graph)
 		})
 	}
 
@@ -102,7 +128,7 @@ func main() {
 	fmt.Println("Indexing completed successfully.")
 }
 
-func indexFile(ctx context.Context, path string, cp *parser.TSParser, emb embedding.EmbeddingProvider, graph store.GraphStore) error {
+func indexFile(ctx context.Context, projectID, path string, cp *parser.TSParser, emb embedding.EmbeddingProvider, graph store.GraphStore) error {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -115,15 +141,15 @@ func indexFile(ctx context.Context, path string, cp *parser.TSParser, emb embedd
 
 	// Find the file node
 	var fileNode domain.CodeNode
-	for _, n := range nodes {
-		if n.Kind == domain.KindFile {
-			fileNode = n
-			break
+	for i := range nodes {
+		nodes[i].ProjectID = projectID
+		if nodes[i].Kind == domain.KindFile {
+			fileNode = nodes[i]
 		}
 	}
 
 	// Check if file has changed structurally
-	oldHash, err := graph.GetFileHash(ctx, path)
+	oldHash, err := graph.GetFileHash(ctx, projectID, path)
 	if err == nil && oldHash == fileNode.SignatureHash {
 		fmt.Printf("Skipping %s (no structural changes)\n", path)
 		return nil
@@ -132,7 +158,7 @@ func indexFile(ctx context.Context, path string, cp *parser.TSParser, emb embedd
 	fmt.Printf("Indexing %s...\n", path)
 
 	// Prune old nodes before re-indexing (except the file node itself which we'll upsert)
-	err = graph.DeleteNodesByFile(ctx, path)
+	err = graph.DeleteNodesByFile(ctx, projectID, path)
 	if err != nil {
 		log.Printf("warning: failed to prune old nodes for %s: %v", path, err)
 	}
@@ -143,18 +169,27 @@ func indexFile(ctx context.Context, path string, cp *parser.TSParser, emb embedd
 	}
 
 	embeddings, err := emb.EmbedBatch(ctx, signatures)
-	for i, node := range nodes {
+	for i := range nodes {
 		if err == nil && i < len(embeddings) {
-			node.Embedding = embeddings[i]
+			nodes[i].Embedding = embeddings[i]
 		}
-		graph.UpsertNode(ctx, node)
+		graph.UpsertNode(ctx, nodes[i])
 	}
 
 	for _, rel := range relations {
+		rel.ProjectID = projectID
 		graph.UpsertRelation(ctx, rel)
 	}
 
 	return nil
+}
+
+func deriveProjectID() string {
+	// Simple derivation from git remote or current directory
+	// In a real scenario, we might use 'git remote get-url origin'
+	// For now, let's use the directory name or a placeholder
+	dir, _ := os.Getwd()
+	return filepath.Base(dir)
 }
 
 func isIgnored(path string) bool {

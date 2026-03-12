@@ -15,22 +15,18 @@ jobs:
         uses: actions/checkout@v4
 
       # --- TAHAP 1: CLI REVIEWER (Hanya saat Pull Request) ---
-      - name: Run AI Reviewer (CLI)
+      - name: Run AI Reviewer (Action)
         if: github.event_name == 'pull_request'
-        uses: docker://ghcr.io/aegisnodejkt/aegis-wilwatikta-cli:latest
-        env:
-          # Mapping ENV karena 'uses: docker://' tidak menggunakan 'with:'
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PROVIDER: ${{ secrets.PROVIDER }}
-          PLATFORM: 'github'
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPOSITORY_NAME: ${{ github.repository }}
-          # Neo4j tetap disertakan jika CLI membutuhkan context graph
-          NEO4J_URI: ${{ secrets.NEO4J_URI }}
-          NEO4J_USER: ${{ secrets.NEO4J_USER }}
-          NEO4J_PASS: ${{ secrets.NEO4J_PASS }}
-          NEO4J_DATABASE: ${{ secrets.NEO4J_DATABASE }}
+        uses: ./
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          openai_api_key: ${{ secrets.OPENAI_API_KEY }}
+          provider: ${{ secrets.PROVIDER }}
+          platform: 'github'
+          neo4j_uri: ${{ secrets.NEO4J_URI }}
+          neo4j_user: ${{ secrets.NEO4J_USER }}
+          neo4j_pass: ${{ secrets.NEO4J_PASS }}
+          neo4j_database: ${{ secrets.NEO4J_DATABASE }}
 
       # --- TAHAP 2: INDEXER (Hanya saat Merge/Push ke Main) ---
       - name: Run Code Indexer

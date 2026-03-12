@@ -23,19 +23,21 @@ type FileDiff struct {
 }
 
 type PullRequest struct {
-	ID          int
-	Title       string
-	Description string
-	BaseBranch  string
-	HeadBranch  string
-	Diffs       []FileDiff
+	ID             int
+	Title          string
+	Description    string
+	BaseBranch     string
+	HeadBranch     string
+	HeadSHA        string
+	Diffs          []FileDiff
+	PreviousReview *ReviewResult
 }
 
 type ReviewComment struct {
-	File      string   `json:"file"`
-	Position  int      `json:"position"`
-	Severity  Severity `json:"severity"`
-	Issue     string   `json:"issue"`
+	File       string   `json:"file"`
+	Line       int      `json:"line"`
+	Severity   Severity `json:"severity"`
+	Issue      string   `json:"issue"`
 	Suggestion string   `json:"suggestion"`
 }
 

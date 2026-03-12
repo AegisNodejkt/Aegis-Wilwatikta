@@ -49,13 +49,13 @@ func (l *LocalPlatform) GetPullRequest(ctx context.Context, owner, repo string, 
 	}, nil
 }
 
-func (l *LocalPlatform) PostReview(ctx context.Context, owner, repo string, prNumber int, review *domain.ReviewResult) error {
+func (l *LocalPlatform) PostReview(ctx context.Context, owner, repo string, pr *domain.PullRequest, review *domain.ReviewResult) error {
 	fmt.Printf("\n--- LOCAL REVIEW RESULT ---\n")
 	fmt.Printf("Verdict: %s\n", review.Verdict)
 	fmt.Printf("Summary: %s\n", review.Summary)
 	fmt.Printf("Comments:\n")
 	for _, c := range review.Reviews {
-		fmt.Printf("- %s:%d [%s] %s\n  Suggestion: %s\n", c.File, c.Position, c.Severity, c.Issue, c.Suggestion)
+		fmt.Printf("- %s:%d [%s] %s\n  Suggestion: %s\n", c.File, c.Line, c.Severity, c.Issue, c.Suggestion)
 	}
 	fmt.Printf("---------------------------\n")
 	return nil
@@ -68,6 +68,10 @@ func (l *LocalPlatform) GetFileContent(ctx context.Context, owner, repo, path, r
 		return "", fmt.Errorf("failed to get file content: %w", err)
 	}
 	return string(contentBytes), nil
+}
+
+func (l *LocalPlatform) GetLastReview(ctx context.Context, owner, repo string, prNumber int) (*domain.ReviewResult, error) {
+	return nil, nil
 }
 
 func parseGitDiff(diffStr string) []domain.FileDiff {

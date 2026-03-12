@@ -19,15 +19,17 @@ type Scout struct {
 	graphStore store.GraphStore
 	embedder   embedding.EmbeddingProvider
 	model      string
+	projectID  string
 }
 
-func NewScout(p provider.AIProvider, plat platform.Platform, gs store.GraphStore, emb embedding.EmbeddingProvider, model string) *Scout {
+func NewScout(p provider.AIProvider, plat platform.Platform, gs store.GraphStore, emb embedding.EmbeddingProvider, model, projectID string) *Scout {
 	return &Scout{
 		provider:   p,
 		platform:   plat,
 		graphStore: gs,
 		embedder:   emb,
 		model:      model,
+		projectID:  projectID,
 	}
 }
 
@@ -36,10 +38,22 @@ func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domai
 	var reports []*domain.ImpactReport
 	var fragileNodes []string
 
+	// 0. Historical Context (Resolution Tracking)
+	historicalContext := ""
+	if pr.PreviousReview != nil {
+		historicalContext = "\n--- PREVIOUS REVIEW UNRESOLVED ISSUES ---\n"
+		for _, r := range pr.PreviousReview.Reviews {
+			if r.Severity == domain.SeverityMedium || r.Severity == domain.SeverityHigh || r.Severity == domain.SeverityCritical {
+				historicalContext += fmt.Sprintf("- [%s] %s in %s\n", r.Severity, r.Issue, r.File)
+				relatedFiles = append(relatedFiles, r.File)
+			}
+		}
+	}
+
 	// 1. RAG-based context gathering (Primary)
 	if s.graphStore != nil {
 		for _, diff := range pr.Diffs {
-			impact, err := s.graphStore.GetImpactContext(ctx, diff.Path)
+			impact, err := s.graphStore.GetImpactContext(ctx, s.projectID, diff.Path)
 			if err == nil && impact != nil {
 				reports = append(reports, impact)
 				if impact.BlastRadiusScore > 10 { // Threshold for "Fragile Nodes"
@@ -58,7 +72,7 @@ func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domai
 			// Generate embedding for the diff content
 			emb, err := s.embedder.EmbedText(ctx, diff.Content)
 			if err == nil {
-				relatedNodes, err := s.graphStore.FindRelatedByEmbedding(ctx, emb, 5)
+				relatedNodes, err := s.graphStore.FindRelatedByEmbedding(ctx, s.projectID, emb, 5)
 				if err == nil {
 					for _, node := range relatedNodes {
 						relatedFiles = append(relatedFiles, node.Path)
@@ -76,16 +90,18 @@ func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domai
 	relatedFiles = s.uniqueStrings(relatedFiles)
 
 	// 2. LLM decision on which files are actually relevant
-	systemPrompt := `You are "The Scout", a Context Optimization Expert. Your mission is to provide "The Architect" with the perfect amount of information.
+	systemPrompt := fmt.Sprintf(`You are "The Scout", a Context Optimization Expert. Your mission is to provide "The Architect" with the perfect amount of information.
+Project ID: %s
 
 Your Strategy:
 - Identify not just what changed, but what might break.
 - For every changed Interface, fetch its Implementations. For every changed Struct, fetch its Consumers.
 - Prune boilerplate noise (generated code, mocks).
 - Focus on "Fragile Nodes" (nodes with high downstream impact).
+- You are provided with a list of UNRESOLVED issues from the previous review iteration. Focus your context gathering on the files where CRITICAL and WARNING issues were previously flagged. Verify if the changes in the current diff address these specific issues.
 
 Respond ONLY with a comma-separated list of filenames that are absolutely necessary to understand the impact of this PR.
-Example output: internal/auth.go, internal/models.go`
+Example output: internal/auth.go, internal/models.go`, s.projectID)
 
 	// Inject project awareness (go.mod / package.json)
 	projectContext := ""
@@ -96,8 +112,8 @@ Example output: internal/auth.go, internal/models.go`
 		}
 	}
 
-	userPrompt := fmt.Sprintf("PR Title: %s\nPR Description: %s\nFragile Nodes: %v\nPotential related files: %v\n\nProject Environment:%s\n\nWhich of these should I fetch for more context?",
-		pr.Title, pr.Description, fragileNodes, relatedFiles, projectContext)
+	userPrompt := fmt.Sprintf("PR Title: %s\nPR Description: %s\nFragile Nodes: %v\nPotential related files: %v\n%s\n\nProject Environment:%s\n\nWhich of these should I fetch for more context?",
+		pr.Title, pr.Description, fragileNodes, relatedFiles, historicalContext, projectContext)
 
 	if len(relatedFiles) == 0 {
 		return "", reports, nil

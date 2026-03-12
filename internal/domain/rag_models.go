@@ -26,6 +26,7 @@ const (
 // CodeNode represents an entity in the codebase (func, struct, etc.)
 type CodeNode struct {
 	ID            string    `json:"id"`
+	ProjectID     string    `json:"project_id"`
 	Name          string    `json:"name"`
 	Kind          NodeKind  `json:"kind"`
 	Path          string    `json:"path"`
@@ -38,10 +39,11 @@ type CodeNode struct {
 
 // CodeRelation connects two CodeNodes
 type CodeRelation struct {
-	From     string       `json:"from_id"`
-	To       string       `json:"to_id"`
-	Type     RelationType `json:"type"`
-	Metadata map[string]interface{} `json:"metadata,omitempty"`
+	From      string                 `json:"from_id"`
+	To        string                 `json:"to_id"`
+	ProjectID string                 `json:"project_id"`
+	Type      RelationType           `json:"type"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // Snippet represents a piece of code with metadata

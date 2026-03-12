@@ -27,7 +27,7 @@ func (s *Neo4jStore) UpsertNode(ctx context.Context, node domain.CodeNode) error
 	defer session.Close(ctx)
 
 	query := `
-	MERGE (n:CodeNode {id: $id})
+	MERGE (n:CodeNode {id: $id, project_id: $project_id})
 	SET n.name = $name,
 	    n.kind = $kind,
 	    n.path = $path,
@@ -39,6 +39,7 @@ func (s *Neo4jStore) UpsertNode(ctx context.Context, node domain.CodeNode) error
 	`
 	params := map[string]interface{}{
 		"id":             node.ID,
+		"project_id":     node.ProjectID,
 		"name":           node.Name,
 		"kind":           string(node.Kind),
 		"path":           node.Path,
@@ -62,16 +63,17 @@ func (s *Neo4jStore) UpsertRelation(ctx context.Context, rel domain.CodeRelation
 
 	// If To is a name (no colon), try to find a node with that name
 	query := fmt.Sprintf(`
-	MATCH (a:CodeNode {id: $from})
+	MATCH (a:CodeNode {id: $from, project_id: $project_id})
 	WITH a
-	MATCH (b:CodeNode)
+	MATCH (b:CodeNode {project_id: $project_id})
 	WHERE b.id = $to OR b.name = $to
-	MERGE (a)-[r:%s]->(b)
+	MERGE (a)-[r:%s {project_id: $project_id}]->(b)
 	`, rel.Type)
 
 	params := map[string]interface{}{
-		"from": rel.From,
-		"to":   rel.To,
+		"from":       rel.From,
+		"to":         rel.To,
+		"project_id": rel.ProjectID,
 	}
 
 	_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
@@ -80,16 +82,16 @@ func (s *Neo4jStore) UpsertRelation(ctx context.Context, rel domain.CodeRelation
 	return err
 }
 
-func (s *Neo4jStore) GetImpactContext(ctx context.Context, filePath string) (*domain.ImpactReport, error) {
+func (s *Neo4jStore) GetImpactContext(ctx context.Context, projectID, filePath string) (*domain.ImpactReport, error) {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
 	query := `
-	MATCH (target:CodeNode {path: $path})
+	MATCH (target:CodeNode {path: $path, project_id: $project_id})
 	WHERE target.kind <> 'FILE'
-	OPTIONAL MATCH (affected:CodeNode)-[r:CALLS|IMPLEMENTS|USES*1..2]->(target)
+	OPTIONAL MATCH (affected:CodeNode {project_id: $project_id})-[r:CALLS|IMPLEMENTS|USES*1..2]->(target)
 	WITH target, affected, r
-	OPTIONAL MATCH (all_affected:CodeNode)-[:CALLS|IMPLEMENTS|USES]->(target)
+	OPTIONAL MATCH (all_affected:CodeNode {project_id: $project_id})-[:CALLS|IMPLEMENTS|USES]->(target)
 	RETURN
 		target,
 		collect({
@@ -100,7 +102,8 @@ func (s *Neo4jStore) GetImpactContext(ctx context.Context, filePath string) (*do
 		count(DISTINCT all_affected) AS blast_radius
 	`
 	params := map[string]interface{}{
-		"path": filePath,
+		"path":       filePath,
+		"project_id": projectID,
 	}
 
 	result, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
@@ -156,16 +159,19 @@ func (s *Neo4jStore) GetImpactContext(ctx context.Context, filePath string) (*do
 	return result.(*domain.ImpactReport), nil
 }
 
-func (s *Neo4jStore) QueryContext(ctx context.Context, filePath string) ([]domain.CodeNode, error) {
+func (s *Neo4jStore) QueryContext(ctx context.Context, projectID, filePath string) ([]domain.CodeNode, error) {
 	return nil, nil
 }
 
-func (s *Neo4jStore) GetFileHash(ctx context.Context, path string) (string, error) {
+func (s *Neo4jStore) GetFileHash(ctx context.Context, projectID, path string) (string, error) {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
-	query := `MATCH (f:CodeNode {id: $id, kind: 'FILE'}) RETURN f.signature_hash AS hash`
-	params := map[string]interface{}{"id": path}
+	query := `MATCH (f:CodeNode {id: $id, kind: 'FILE', project_id: $project_id}) RETURN f.signature_hash AS hash`
+	params := map[string]interface{}{
+		"id":         path,
+		"project_id": projectID,
+	}
 
 	result, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
 		res, err := tx.Run(ctx, query, params)
@@ -186,16 +192,19 @@ func (s *Neo4jStore) GetFileHash(ctx context.Context, path string) (string, erro
 	return result.(string), nil
 }
 
-func (s *Neo4jStore) DeleteNodesByFile(ctx context.Context, path string) error {
+func (s *Neo4jStore) DeleteNodesByFile(ctx context.Context, projectID, path string) error {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
 	query := `
-	MATCH (n:CodeNode {path: $path})
+	MATCH (n:CodeNode {path: $path, project_id: $project_id})
 	WHERE n.kind <> 'FILE'
 	DETACH DELETE n
 	`
-	params := map[string]interface{}{"path": path}
+	params := map[string]interface{}{
+		"path":       path,
+		"project_id": projectID,
+	}
 
 	_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
 		return tx.Run(ctx, query, params)
@@ -203,22 +212,41 @@ func (s *Neo4jStore) DeleteNodesByFile(ctx context.Context, path string) error {
 	return err
 }
 
-func (s *Neo4jStore) FindRelatedByEmbedding(ctx context.Context, embedding []float32, limit int) ([]domain.CodeNode, error) {
+func (s *Neo4jStore) DeleteNodesByProject(ctx context.Context, projectID string) error {
+	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite, DatabaseName: s.databaseName})
+	defer session.Close(ctx)
+
+	query := `
+	MATCH (n:CodeNode {project_id: $project_id})
+	DETACH DELETE n
+	`
+	params := map[string]interface{}{
+		"project_id": projectID,
+	}
+
+	_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
+		return tx.Run(ctx, query, params)
+	})
+	return err
+}
+
+func (s *Neo4jStore) FindRelatedByEmbedding(ctx context.Context, projectID string, embedding []float32, limit int) ([]domain.CodeNode, error) {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
 	// Note: This requires Neo4j 5.x with Vector index.
 	// This is a placeholder for a generic similarity query if index is not present.
 	query := `
-	MATCH (n:CodeNode)
+	MATCH (n:CodeNode {project_id: $project_id})
 	WHERE n.embedding IS NOT NULL
 	RETURN n, gds.similarity.cosine(n.embedding, $embedding) AS score
 	ORDER BY score DESC
 	LIMIT $limit
 	`
 	params := map[string]interface{}{
-		"embedding": embedding,
-		"limit":     limit,
+		"embedding":  embedding,
+		"limit":      limit,
+		"project_id": projectID,
 	}
 
 	result, err := session.ExecuteRead(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {

@@ -18,6 +18,7 @@ import (
 
 type Config struct {
 	Provider    string   `yaml:"provider"`
+	ProjectID   string   `yaml:"project_id"`
 	GeminiModel string   `yaml:"gemini_model"`
 	OpenAIModel string   `yaml:"openai_model"`
 	BaseBranch  string   `yaml:"base_branch"`
@@ -143,7 +144,15 @@ func main() {
 		}
 	}
 
-	scout := agents.NewScout(aiProvider, plat, graphStore, embedder, scoutModel)
+	projectID := os.Getenv("PROJECT_ID")
+	if projectID == "" {
+		projectID = config.ProjectID
+	}
+	if projectID == "" {
+		projectID = repoName
+	}
+
+	scout := agents.NewScout(aiProvider, plat, graphStore, embedder, scoutModel, projectID)
 	arch := agents.NewArchitect(aiProvider, archModel)
 	dip := agents.NewDiplomat(aiProvider, dipModel)
 
