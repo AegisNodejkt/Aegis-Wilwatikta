@@ -25,9 +25,13 @@ func main() {
 	neo4jURI := os.Getenv("NEO4J_URI")
 	neo4jUser := os.Getenv("NEO4J_USER")
 	neo4jPass := os.Getenv("NEO4J_PASS")
+	neo4jDB := os.Getenv("NEO4J_DATABASE")
 
 	if neo4jURI == "" {
 		log.Fatal("NEO4J_URI is required")
+	}
+	if neo4jDB == "" {
+		neo4jDB = "neo4j" // Default to "neo4j" if not specified
 	}
 
 	// Initialize components
@@ -59,7 +63,7 @@ func main() {
 		log.Fatalf("failed to init embedder: %v", err)
 	}
 
-	graph, err := store.NewNeo4jStore(neo4jURI, neo4jUser, neo4jPass)
+	graph, err := store.NewNeo4jStore(neo4jURI, neo4jUser, neo4jPass, neo4jDB)
 	if err != nil {
 		log.Fatalf("failed to init graph store: %v", err)
 	}

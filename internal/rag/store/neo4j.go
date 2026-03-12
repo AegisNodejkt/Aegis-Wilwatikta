@@ -5,23 +5,25 @@ import (
 	"fmt"
 
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/domain"
-	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"github.com/neo4j/neo4j-go-driver/v6/neo4j"
 )
 
 type Neo4jStore struct {
-	driver neo4j.DriverWithContext
+	driver       neo4j.DriverWithContext
+	databaseName string
 }
 
-func NewNeo4jStore(uri, username, password string) (*Neo4jStore, error) {
-	driver, err := neo4j.NewDriverWithContext(uri, neo4j.BasicAuth(username, password, ""))
+func NewNeo4jStore(uri, username, password, databaseName string) (*Neo4jStore, error) {
+	fmt.Printf("uri: %s, username: %s, password: %s, databaseName: %s\n", uri, username, password, databaseName)
+	driver, err := neo4j.NewDriver(uri, neo4j.BasicAuth(username, password, ""))
 	if err != nil {
 		return nil, err
 	}
-	return &Neo4jStore{driver: driver}, nil
+	return &Neo4jStore{driver: driver, databaseName: databaseName}, nil
 }
 
 func (s *Neo4jStore) UpsertNode(ctx context.Context, node domain.CodeNode) error {
-	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
 	query := `
@@ -46,11 +48,12 @@ func (s *Neo4jStore) UpsertNode(ctx context.Context, node domain.CodeNode) error
 	_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
 		return tx.Run(ctx, query, params)
 	})
+	fmt.Printf("UpsertNode: %v\n", err)
 	return err
 }
 
 func (s *Neo4jStore) UpsertRelation(ctx context.Context, rel domain.CodeRelation) error {
-	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite})
+	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
 	// If To is a name (no colon), try to find a node with that name
@@ -74,7 +77,7 @@ func (s *Neo4jStore) UpsertRelation(ctx context.Context, rel domain.CodeRelation
 }
 
 func (s *Neo4jStore) GetImpactContext(ctx context.Context, filePath string) (*domain.ImpactReport, error) {
-	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
+	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
 	query := `
@@ -147,7 +150,7 @@ func (s *Neo4jStore) QueryContext(ctx context.Context, filePath string) ([]domai
 }
 
 func (s *Neo4jStore) FindRelatedByEmbedding(ctx context.Context, embedding []float32, limit int) ([]domain.CodeNode, error) {
-	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead})
+	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
 	// Note: This requires Neo4j 5.x with Vector index.

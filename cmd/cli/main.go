@@ -109,7 +109,11 @@ func main() {
 	if config.RAG.Enabled {
 		neo4jUser := os.Getenv("NEO4J_USER")
 		neo4jPass := os.Getenv("NEO4J_PASS")
-		graphStore, err = store.NewNeo4jStore(config.RAG.ConnectionURL, neo4jUser, neo4jPass)
+		neo4jDB := os.Getenv("NEO4J_DATABASE")
+		if neo4jDB == "" {
+			neo4jDB = "neo4j"
+		}
+		graphStore, err = store.NewNeo4jStore(config.RAG.ConnectionURL, neo4jUser, neo4jPass, neo4jDB)
 		if err != nil {
 			log.Printf("Warning: failed to initialize graph store: %v. Continuing without RAG.", err)
 		}
