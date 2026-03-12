@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*' # Agar build juga jalan saat Anda buat tag release
 
 jobs:
   build-and-push:
@@ -15,6 +17,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      # Langkah krusial: Mengubah nama repo menjadi lowercase
+      - name: Set Image Names to Lowercase
+        run: |
+          echo "IMAGE_CLI=ghcr.io/${{ github.repository_owner }}/aegis-cli" | tr '[:upper:]' '[:lower:]' >> $GITHUB_ENV
+          echo "IMAGE_INDEXER=ghcr.io/${{ github.repository_owner }}/aegis-indexer" | tr '[:upper:]' '[:lower:]' >> $GITHUB_ENV
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
@@ -28,8 +36,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository }}/cli
-            ghcr.io/${{ github.repository }}/indexer
+            ${{ env.IMAGE_CLI }}
+            ${{ env.IMAGE_INDEXER }}
 
       - name: Build and push CLI image
         uses: docker/build-push-action@v5
@@ -37,7 +45,8 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          tags: ghcr.io/${{ github.repository }}/cli:latest
+          # Menggunakan variabel env yang sudah lowercase
+          tags: ${{ env.IMAGE_CLI }}:latest, ${{ env.IMAGE_CLI }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
 
       - name: Build and push Indexer image
@@ -46,7 +55,8 @@ jobs:
           context: .
           file: ./Dockerfile.indexer
           push: true
-          tags: ghcr.io/${{ github.repository }}/indexer:latest
+          # Menggunakan variabel env yang sudah lowercase
+          tags: ${{ env.IMAGE_INDEXER }}:latest, ${{ env.IMAGE_INDEXER }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
 
   build-binaries:
@@ -61,10 +71,10 @@ jobs:
           go-version: '1.21'
 
       - name: Build CLI binary
-        run: go build -o aegis-reviewer ./cmd/cli
+        run: go build -v -o aegis-reviewer ./cmd/cli
 
       - name: Build Indexer binary
-        run: go build -o aegis-indexer ./cmd/indexer
+        run: go build -v -o aegis-indexer ./cmd/indexer
 
       - name: Upload binaries as artifact
         uses: actions/upload-artifact@v4
@@ -73,3 +83,4 @@ jobs:
           path: |
             ./aegis-reviewer
             ./aegis-indexer
+          retention-days: 7 # Hemat kuota dengan menyimpan hanya 7 hari
