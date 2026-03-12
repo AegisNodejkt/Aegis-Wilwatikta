@@ -20,13 +20,18 @@ func NewDiplomat(p provider.AIProvider, model string) *Diplomat {
 }
 
 func (d *Diplomat) FormatReview(ctx context.Context, rawReview string, aggregated map[ImpactTier][]AggregatedImpact, healthScore int) (*domain.ReviewResult, error) {
-	systemPrompt := `You are "The Diplomat", a communication specialist.
-Your goal is to translate raw technical findings into constructive, human-readable feedback in JSON format.
-You will receive a raw review from "The Architect".
+	systemPrompt := `You are "The Diplomat", a Technical Communication Specialist. You bridge the gap between AI analysis and Human developers.
+
+Your Strategy:
+- Executive Summary: Start with a high-level "PR Health Score" (0-100).
+- Impact Visualization: Use the Graph RAG data to explain the "Blast Radius" of this PR.
+- Actionable Feedback: Group issues by file. Use GitHub-specific markdown (e.g., > [!CAUTION]) for CRITICAL severity.
+- Constructive Tone: Be objective, firm on quality, but helpful.
+
 You MUST output a valid JSON matching this schema:
 {
   "verdict": "APPROVE" | "COMMENT" | "REQUEST_CHANGES",
-  "summary": "A high-level summary of the review",
+  "summary": "The full Markdown report including Health Score and Blast Radius table",
   "reviews": [
     {
       "file": "path/to/file",
@@ -38,12 +43,12 @@ You MUST output a valid JSON matching this schema:
   ]
 }
 
-Ensure the tone is professional and helpful. If there are critical issues, the verdict MUST be REQUEST_CHANGES. If there are only minor suggestions, use COMMENT or APPROVE.`
+Ensure the tone is professional. If there are critical issues, the verdict MUST be REQUEST_CHANGES.`
 
 	userPrompt := fmt.Sprintf("Raw Architect Review:\n%s", rawReview)
 	if len(aggregated) > 0 {
-		impactMD := "\n\n### 🔍 Impact Analysis (Graph RAG)\n"
-		impactMD += fmt.Sprintf("#### Review Health Score: %d/100\n", healthScore)
+		impactMD := "\n\n### 🔍 Impact Analysis (Blast Radius)\n"
+		impactMD += fmt.Sprintf("#### PR Health Score: %d/100\n", healthScore)
 
 		tiers := []ImpactTier{TierBreaking, TierLogic, TierLeaf}
 		for _, tier := range tiers {
@@ -51,13 +56,22 @@ Ensure the tone is professional and helpful. If there are critical issues, the v
 			if len(items) == 0 {
 				continue
 			}
-			impactMD += fmt.Sprintf("\n**Tier: %s**\n", tier)
+			tierLabel := string(tier)
+			switch tier {
+			case TierBreaking:
+				tierLabel = "🔴 [Breaking]"
+			case TierLogic:
+				tierLabel = "🟡 [Logic]"
+			case TierLeaf:
+				tierLabel = "🟢 [Leaf]"
+			}
+			impactMD += fmt.Sprintf("\n**Tier: %s**\n", tierLabel)
 			impactMD += "| Component | File Path | Reason |\n| :--- | :--- | :--- |\n"
 			for _, item := range items {
 				impactMD += fmt.Sprintf("| `%s` | `%s` | %s |\n", item.AffectedNode.Name, item.AffectedNode.Path, item.Reason)
 			}
 		}
-		userPrompt += fmt.Sprintf("\n\nInclude this Impact Analysis in your summary:\n%s", impactMD)
+		userPrompt += fmt.Sprintf("\n\nInclude this Blast Radius Analysis in your Summary field using Markdown table:\n%s", impactMD)
 	}
 
 	response, err := d.provider.SendMessage(ctx, systemPrompt, userPrompt, d.model)

@@ -34,6 +34,7 @@ func NewScout(p provider.AIProvider, plat platform.Platform, gs store.GraphStore
 func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domain.PullRequest) (string, []*domain.ImpactReport, error) {
 	var relatedFiles []string
 	var reports []*domain.ImpactReport
+	var fragileNodes []string
 
 	// 1. RAG-based context gathering (Primary)
 	if s.graphStore != nil {
@@ -41,6 +42,9 @@ func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domai
 			impact, err := s.graphStore.GetImpactContext(ctx, diff.Path)
 			if err == nil && impact != nil {
 				reports = append(reports, impact)
+				if impact.BlastRadiusScore > 10 { // Threshold for "Fragile Nodes"
+					fragileNodes = append(fragileNodes, impact.TargetNode.Name)
+				}
 				for _, affected := range impact.AffectedNodes {
 					relatedFiles = append(relatedFiles, affected.Node.Path)
 				}
@@ -72,13 +76,28 @@ func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domai
 	relatedFiles = s.uniqueStrings(relatedFiles)
 
 	// 2. LLM decision on which files are actually relevant
-	systemPrompt := `You are "The Scout", a context optimization agent.
-Your goal is to identify which related files are necessary to understand the logic changes in a Pull Request.
-You will be given a list of files mentioned in the diff and you must decide which ones to fetch to provide better context for a senior engineer review.
-Respond ONLY with a comma-separated list of filenames that are absolutely necessary.
+	systemPrompt := `You are "The Scout", a Context Optimization Expert. Your mission is to provide "The Architect" with the perfect amount of information.
+
+Your Strategy:
+- Identify not just what changed, but what might break.
+- For every changed Interface, fetch its Implementations. For every changed Struct, fetch its Consumers.
+- Prune boilerplate noise (generated code, mocks).
+- Focus on "Fragile Nodes" (nodes with high downstream impact).
+
+Respond ONLY with a comma-separated list of filenames that are absolutely necessary to understand the impact of this PR.
 Example output: internal/auth.go, internal/models.go`
 
-	userPrompt := fmt.Sprintf("PR Title: %s\nPR Description: %s\nPotential related files: %v\n\nWhich of these should I fetch for more context?", pr.Title, pr.Description, relatedFiles)
+	// Inject project awareness (go.mod / package.json)
+	projectContext := ""
+	for _, f := range []string{"go.mod", "package.json"} {
+		content, err := s.platform.GetFileContent(ctx, owner, repo, f, pr.BaseBranch)
+		if err == nil {
+			projectContext += fmt.Sprintf("\n--- Project File: %s ---\n%s\n", f, content)
+		}
+	}
+
+	userPrompt := fmt.Sprintf("PR Title: %s\nPR Description: %s\nFragile Nodes: %v\nPotential related files: %v\n\nProject Environment:%s\n\nWhich of these should I fetch for more context?",
+		pr.Title, pr.Description, fragileNodes, relatedFiles, projectContext)
 
 	if len(relatedFiles) == 0 {
 		return "", reports, nil
