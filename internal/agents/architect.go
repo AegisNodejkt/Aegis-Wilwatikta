@@ -35,7 +35,7 @@ Focus on Critical Failure Points:
 Output Constraint:
 You MUST return a valid JSON array of issues. Each issue must contain:
 - file_path (string)
-- line_number (int)
+- position_in_diff (int): The line number within the provided diff where the issue is located.
 - severity (string: CRITICAL|MAJOR|MINOR)
 - issue_description (string)
 - refactor_suggestion (string: code snippet)
@@ -44,7 +44,7 @@ Example:
 [
   {
     "file_path": "internal/db.go",
-    "line_number": 42,
+    "position_in_diff": 4,
     "severity": "CRITICAL",
     "issue_description": "Potential goroutine leak: context is not passed to the background task.",
     "refactor_suggestion": "go task(ctx)"

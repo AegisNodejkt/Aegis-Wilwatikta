@@ -35,7 +35,7 @@ You MUST output a valid JSON matching this schema:
   "reviews": [
     {
       "file": "path/to/file",
-      "line": 123,
+      "position": 4, // The position in the diff
       "severity": "LOW" | "MEDIUM" | "HIGH" | "CRITICAL",
       "issue": "Description of the issue",
       "suggestion": "How to fix it"

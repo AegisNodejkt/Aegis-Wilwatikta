@@ -33,7 +33,7 @@ type PullRequest struct {
 
 type ReviewComment struct {
 	File      string   `json:"file"`
-	Line      int      `json:"line"`
+	Position  int      `json:"position"`
 	Severity  Severity `json:"severity"`
 	Issue     string   `json:"issue"`
 	Suggestion string   `json:"suggestion"`
