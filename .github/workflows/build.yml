@@ -1,0 +1,75 @@
+name: Build and Push Images
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to the Container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository }}/cli
+            ghcr.io/${{ github.repository }}/indexer
+
+      - name: Build and push CLI image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository }}/cli:latest
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Build and push Indexer image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.indexer
+          push: true
+          tags: ghcr.io/${{ github.repository }}/indexer:latest
+          labels: ${{ steps.meta.outputs.labels }}
+
+  build-binaries:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build CLI binary
+        run: go build -o aegis-reviewer ./cmd/cli
+
+      - name: Build Indexer binary
+        run: go build -o aegis-indexer ./cmd/indexer
+
+      - name: Upload binaries as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegis-binaries
+          path: |
+            ./aegis-reviewer
+            ./aegis-indexer
