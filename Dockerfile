@@ -22,4 +22,4 @@ WORKDIR /root/
 COPY --from=builder /aegis-reviewer .
 
 # Set the entrypoint for the container
-ENTRYPOINT ["./aegis-reviewer"]
+ENTRYPOINT ["/root/aegis-reviewer"]

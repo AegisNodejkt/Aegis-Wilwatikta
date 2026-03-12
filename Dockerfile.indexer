@@ -25,4 +25,4 @@ WORKDIR /root/
 COPY --from=builder /aegis-indexer .
 
 # Set the entrypoint for the container
-ENTRYPOINT ["./aegis-indexer"]
+ENTRYPOINT ["/root/aegis-indexer"]
