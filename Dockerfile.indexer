@@ -10,8 +10,9 @@ RUN go mod download
 # Copy the rest of the source code
 COPY . .
 
-# Build the CLI application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /aegis-reviewer ./cmd/cli
+# Build the Indexer application
+# Assuming the entrypoint is cmd/indexer/main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /aegis-indexer ./cmd/indexer
 
 # Stage 2: Create the final lightweight image
 FROM alpine:latest
@@ -19,7 +20,7 @@ FROM alpine:latest
 WORKDIR /root/
 
 # Copy the binary from the builder stage
-COPY --from=builder /aegis-reviewer .
+COPY --from=builder /aegis-indexer .
 
 # Set the entrypoint for the container
-ENTRYPOINT ["./aegis-reviewer"]
+ENTRYPOINT ["./aegis-indexer"]
