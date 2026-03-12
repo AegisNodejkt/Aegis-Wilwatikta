@@ -22,17 +22,39 @@ func main() {
 	}
 
 	// Configuration (In production, these come from Env/YAML)
-	geminiKey := os.Getenv("GEMINI_API_KEY")
 	neo4jURI := os.Getenv("NEO4J_URI")
 	neo4jUser := os.Getenv("NEO4J_USER")
 	neo4jPass := os.Getenv("NEO4J_PASS")
 
-	if geminiKey == "" || neo4jURI == "" {
-		log.Fatal("GEMINI_API_KEY and NEO4J_URI are required")
+	if neo4jURI == "" {
+		log.Fatal("NEO4J_URI is required")
 	}
 
 	// Initialize components
-	embedder, err := embedding.NewGoogleEmbeddingProvider(ctx, geminiKey, "")
+	var embedder embedding.EmbeddingProvider
+	var err error
+	provider := os.Getenv("EMBEDDING_PROVIDER")
+	if provider == "" {
+		provider = "google"
+	}
+
+	switch provider {
+	case "google":
+		geminiKey := os.Getenv("GEMINI_API_KEY")
+		if geminiKey == "" {
+			log.Fatal("GEMINI_API_KEY is required for google embedding provider")
+		}
+		embedder, err = embedding.NewGoogleEmbeddingProvider(ctx, geminiKey, "")
+	case "openai":
+		openaiKey := os.Getenv("OPENAI_API_KEY")
+		if openaiKey == "" {
+			log.Fatal("OPENAI_API_KEY is required for openai embedding provider")
+		}
+		embedder = embedding.NewOpenAIEmbeddingProvider(openaiKey, "")
+	default:
+		log.Fatalf("unsupported embedding provider: %s", provider)
+	}
+
 	if err != nil {
 		log.Fatalf("failed to init embedder: %v", err)
 	}

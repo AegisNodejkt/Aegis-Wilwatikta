@@ -43,7 +43,7 @@ func TestReviewerEngine_RunReview(t *testing.T) {
 		}`,
 	}
 
-	scout := agents.NewScout(mockAI, mockPlat, nil, "test-model")
+	scout := agents.NewScout(mockAI, mockPlat, nil, nil, "test-model")
 	arch := agents.NewArchitect(mockAI, "test-model")
 	dip := agents.NewDiplomat(mockAI, "test-model")
 

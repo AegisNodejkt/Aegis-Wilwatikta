@@ -9,6 +9,7 @@ import (
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/domain"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/platform"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/provider"
+	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/embedding"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/store"
 )
 
@@ -16,14 +17,16 @@ type Scout struct {
 	provider   provider.AIProvider
 	platform   platform.Platform
 	graphStore store.GraphStore
+	embedder   embedding.EmbeddingProvider
 	model      string
 }
 
-func NewScout(p provider.AIProvider, plat platform.Platform, gs store.GraphStore, model string) *Scout {
+func NewScout(p provider.AIProvider, plat platform.Platform, gs store.GraphStore, emb embedding.EmbeddingProvider, model string) *Scout {
 	return &Scout{
 		provider:   p,
 		platform:   plat,
 		graphStore: gs,
+		embedder:   emb,
 		model:      model,
 	}
 }
@@ -45,7 +48,23 @@ func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domai
 		}
 	}
 
-	// 2. Heuristic context gathering (Fallback/Secondary)
+	// 2. Semantic Search context gathering (Secondary)
+	if s.graphStore != nil && s.embedder != nil {
+		for _, diff := range pr.Diffs {
+			// Generate embedding for the diff content
+			emb, err := s.embedder.EmbedText(ctx, diff.Content)
+			if err == nil {
+				relatedNodes, err := s.graphStore.FindRelatedByEmbedding(ctx, emb, 5)
+				if err == nil {
+					for _, node := range relatedNodes {
+						relatedFiles = append(relatedFiles, node.Path)
+					}
+				}
+			}
+		}
+	}
+
+	// 3. Heuristic context gathering (Fallback/Tertiary)
 	heuristicFiles := s.findRelatedFiles(pr)
 	relatedFiles = append(relatedFiles, heuristicFiles...)
 
