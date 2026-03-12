@@ -14,7 +14,7 @@ COPY . .
 
 # Build the Indexer application
 # Assuming the entrypoint is cmd/indexer/main.go
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o /aegis-indexer ./cmd/indexer
+RUN GOOS=linux go build -a -installsuffix cgo -o /aegis-indexer ./cmd/indexer
 
 # Stage 2: Create the final lightweight image
 FROM alpine:latest
