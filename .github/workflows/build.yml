@@ -5,7 +5,7 @@ on:
     branches:
       - main
     tags:
-      - 'v*' # Agar build juga jalan saat Anda buat tag release
+      - 'v*'
 
 jobs:
   build-and-push:
@@ -18,11 +18,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Langkah krusial: Mengubah nama repo menjadi lowercase
-      - name: Set Image Names to Lowercase
+      - name: Set Dynamic Image Names (Lowercase)
         run: |
-          echo "IMAGE_CLI=ghcr.io/${{ github.repository_owner }}/aegis-cli" | tr '[:upper:]' '[:lower:]' >> $GITHUB_ENV
-          echo "IMAGE_INDEXER=ghcr.io/${{ github.repository_owner }}/aegis-indexer" | tr '[:upper:]' '[:lower:]' >> $GITHUB_ENV
+          # Mengambil nama repo secara dinamis dan mengubah ke lowercase
+          REPO_NAME_LC=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_CLI=ghcr.io/${REPO_NAME_LC}-cli" >> $GITHUB_ENV
+          echo "IMAGE_INDEXER=ghcr.io/${REPO_NAME_LC}-indexer" >> $GITHUB_ENV
+          echo "BINARY_NAME_BASE=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
 
       - name: Log in to the Container registry
         uses: docker/login-action@v3
@@ -31,7 +33,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels) for Docker
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
@@ -45,7 +47,6 @@ jobs:
           context: .
           file: ./Dockerfile
           push: true
-          # Menggunakan variabel env yang sudah lowercase
           tags: ${{ env.IMAGE_CLI }}:latest, ${{ env.IMAGE_CLI }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
 
@@ -55,7 +56,6 @@ jobs:
           context: .
           file: ./Dockerfile.indexer
           push: true
-          # Menggunakan variabel env yang sudah lowercase
           tags: ${{ env.IMAGE_INDEXER }}:latest, ${{ env.IMAGE_INDEXER }}:${{ github.sha }}
           labels: ${{ steps.meta.outputs.labels }}
 
@@ -65,22 +65,30 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Set Dynamic Binary Names
+        run: |
+          # Membuat nama binary berdasarkan nama repo
+          RAW_NAME=$(echo "${{ github.event.repository.name }}" | tr '[:upper:]' '[:lower:]')
+          echo "BIN_CLI=${RAW_NAME}-reviewer" >> $GITHUB_ENV
+          echo "BIN_INDEXER=${RAW_NAME}-indexer" >> $GITHUB_ENV
+          echo "ARTIFACT_NAME=${RAW_NAME}-binaries" >> $GITHUB_ENV
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version: '1.21'
 
       - name: Build CLI binary
-        run: go build -v -o aegis-reviewer ./cmd/cli
+        run: go build -v -o ${{ env.BIN_CLI }} ./cmd/cli
 
       - name: Build Indexer binary
-        run: go build -v -o aegis-indexer ./cmd/indexer
+        run: go build -v -o ${{ env.BIN_INDEXER }} ./cmd/indexer
 
       - name: Upload binaries as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: aegis-binaries
+          name: ${{ env.ARTIFACT_NAME }}
           path: |
-            ./aegis-reviewer
-            ./aegis-indexer
-          retention-days: 7 # Hemat kuota dengan menyimpan hanya 7 hari
+            ./${{ env.BIN_CLI }}
+            ./${{ env.BIN_INDEXER }}
+          retention-days: 7
