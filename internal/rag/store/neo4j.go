@@ -212,6 +212,25 @@ func (s *Neo4jStore) DeleteNodesByFile(ctx context.Context, projectID, path stri
 	return err
 }
 
+func (s *Neo4jStore) DeleteFileNode(ctx context.Context, projectID, path string) error {
+	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite, DatabaseName: s.databaseName})
+	defer session.Close(ctx)
+
+	query := `
+	MATCH (n:CodeNode {path: $path, project_id: $project_id, kind: 'FILE'})
+	DETACH DELETE n
+	`
+	params := map[string]interface{}{
+		"path":       path,
+		"project_id": projectID,
+	}
+
+	_, err := session.ExecuteWrite(ctx, func(tx neo4j.ManagedTransaction) (interface{}, error) {
+		return tx.Run(ctx, query, params)
+	})
+	return err
+}
+
 func (s *Neo4jStore) DeleteNodesByProject(ctx context.Context, projectID string) error {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite, DatabaseName: s.databaseName})
 	defer session.Close(ctx)

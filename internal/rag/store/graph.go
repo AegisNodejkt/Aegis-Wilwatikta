@@ -21,6 +21,8 @@ type GraphStore interface {
 	GetFileHash(ctx context.Context, projectID, path string) (string, error)
 	// DeleteNodesByFile removes all nodes and relations associated with a file
 	DeleteNodesByFile(ctx context.Context, projectID, path string) error
+	// DeleteFileNode removes the file node itself and its relations
+	DeleteFileNode(ctx context.Context, projectID, path string) error
 	// DeleteNodesByProject removes all nodes and relations associated with a project
 	DeleteNodesByProject(ctx context.Context, projectID string) error
 }
