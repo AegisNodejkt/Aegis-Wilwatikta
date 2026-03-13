@@ -7,7 +7,9 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/domain"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/embedding"
@@ -19,28 +21,35 @@ func main() {
 	ctx := context.Background()
 
 	var projectIDFlag string
+	var maxWorkersFlag int
 	flag.StringVar(&projectIDFlag, "project-id", "", "ID of the project")
+	flag.IntVar(&maxWorkersFlag, "max-workers", 5, "Maximum number of concurrent workers")
 	flag.Parse()
 
 	command := flag.Arg(0)
-	targetFiles := flag.Args()
-	if command != "cleanup" {
+	var targetFiles []string
+	if command != "cleanup" && command != "" {
 		targetFiles = flag.Args()
-	} else {
-		targetFiles = nil
 	}
 
-	// Configuration (In production, these come from Env/YAML)
+	// Configuration
 	neo4jURI := os.Getenv("NEO4J_URI")
 	neo4jUser := os.Getenv("NEO4J_USER")
 	neo4jPass := os.Getenv("NEO4J_PASS")
 	neo4jDB := os.Getenv("NEO4J_DATABASE")
+	maxWorkersEnv := os.Getenv("MAX_WORKERS")
+
+	if maxWorkersEnv != "" {
+		if val, err := strconv.Atoi(maxWorkersEnv); err == nil {
+			maxWorkersFlag = val
+		}
+	}
 
 	if neo4jURI == "" {
 		log.Fatal("NEO4J_URI is required")
 	}
 	if neo4jDB == "" {
-		neo4jDB = "neo4j" // Default to "neo4j" if not specified
+		neo4jDB = "neo4j"
 	}
 
 	// Initialize components
@@ -76,6 +85,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to init graph store: %v", err)
 	}
+	defer graph.Close(ctx)
 
 	projectID := os.Getenv("PROJECT_ID")
 	if projectID == "" {
@@ -97,16 +107,46 @@ func main() {
 
 	codeParser := parser.NewTSParser()
 
-	// Crawl and Index
+	filesToProcess := make(chan string, 100)
+	var wg sync.WaitGroup
+
+	// Start workers
+	for w := 1; w <= maxWorkersFlag; w++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for path := range filesToProcess {
+				// Handle deletion if file doesn't exist
+				if _, err := os.Stat(path); os.IsNotExist(err) {
+					fmt.Printf("File %s deleted, removing from graph...\n", path)
+					err = graph.DeleteNodesByFile(ctx, projectID, path)
+					if err != nil {
+						log.Printf("failed to delete nodes for %s: %v", path, err)
+					}
+					// Also delete the file node itself
+					err = graph.DeleteFileNode(ctx, projectID, path)
+					if err != nil {
+						log.Printf("failed to delete file node for %s: %v", path, err)
+					}
+					continue
+				}
+
+				if !codeParser.Supports(filepath.Ext(path)) {
+					continue
+				}
+
+				err := indexFile(ctx, projectID, path, codeParser, embedder, graph)
+				if err != nil {
+					log.Printf("failed to index %s: %v", path, err)
+				}
+			}
+		}()
+	}
+
+	// Feed files to workers
 	if len(targetFiles) > 0 {
 		for _, path := range targetFiles {
-			if !codeParser.Supports(filepath.Ext(path)) {
-				continue
-			}
-			err = indexFile(ctx, projectID, path, codeParser, embedder, graph)
-			if err != nil {
-				log.Printf("failed to index %s: %v", path, err)
-			}
+			filesToProcess <- path
 		}
 	} else {
 		err = filepath.Walk(".", func(path string, info os.FileInfo, err error) error {
@@ -116,10 +156,12 @@ func main() {
 			if info.IsDir() || isIgnored(path) || !codeParser.Supports(filepath.Ext(path)) {
 				return nil
 			}
-
-			return indexFile(ctx, projectID, path, codeParser, embedder, graph)
+			filesToProcess <- path
+			return nil
 		})
 	}
+	close(filesToProcess)
+	wg.Wait()
 
 	if err != nil {
 		log.Fatalf("indexing failed: %v", err)
@@ -148,10 +190,12 @@ func indexFile(ctx context.Context, projectID, path string, cp *parser.TSParser,
 		}
 	}
 
-	// Check if file has changed structurally
+	// Check if file has changed structurally (FR 2.2)
 	oldHash, err := graph.GetFileHash(ctx, projectID, path)
 	if err == nil && oldHash == fileNode.SignatureHash {
 		fmt.Printf("Skipping %s (no structural changes)\n", path)
+		// Update the file node anyway to sync content_hash if it changed
+		_ = graph.UpsertNode(ctx, fileNode)
 		return nil
 	}
 
@@ -173,27 +217,30 @@ func indexFile(ctx context.Context, projectID, path string, cp *parser.TSParser,
 		if err == nil && i < len(embeddings) {
 			nodes[i].Embedding = embeddings[i]
 		}
-		graph.UpsertNode(ctx, nodes[i])
+		err = graph.UpsertNode(ctx, nodes[i])
+		if err != nil {
+			log.Printf("failed to upsert node %s: %v", nodes[i].ID, err)
+		}
 	}
 
 	for _, rel := range relations {
 		rel.ProjectID = projectID
-		graph.UpsertRelation(ctx, rel)
+		err = graph.UpsertRelation(ctx, rel)
+		if err != nil {
+			log.Printf("failed to upsert relation from %s to %s: %v", rel.From, rel.To, err)
+		}
 	}
 
 	return nil
 }
 
 func deriveProjectID() string {
-	// Simple derivation from git remote or current directory
-	// In a real scenario, we might use 'git remote get-url origin'
-	// For now, let's use the directory name or a placeholder
 	dir, _ := os.Getwd()
 	return filepath.Base(dir)
 }
 
 func isIgnored(path string) bool {
-	ignoredDirs := []string{".git", "vendor", "node_modules", "testdata"}
+	ignoredDirs := []string{".git", "vendor", "node_modules", "testdata", "bin"}
 	for _, d := range ignoredDirs {
 		if strings.Contains(path, "/"+d+"/") || strings.HasPrefix(path, d+"/") {
 			return true
