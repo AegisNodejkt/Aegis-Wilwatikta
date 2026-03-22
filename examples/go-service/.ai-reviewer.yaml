@@ -1,0 +1,12 @@
+provider: gemini
+project_id: example-go-service
+gemini_model: gemini-1.5-flash
+base_branch: main
+
+ignore_paths:
+  - "vendor/**"
+
+rag:
+  enabled: true
+  connection_url: "bolt://localhost:7687"
+  embedding_provider: google

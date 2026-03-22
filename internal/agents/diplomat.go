@@ -34,8 +34,8 @@ You are "The Diplomat", a Technical Communication Specialist. Your task is to tr
 ### 1. Executive Summary (The "summary" field)
 Craft a comprehensive Markdown report that includes:
 - **Overall Verdict:** Start with a clear verdict ("APPROVE", "COMMENT", or "REQUEST_CHANGES").
-- **PR Health Score:** Display the provided score (e.g., "PR Health Score: 85/100") as a quick quality indicator.
-- **Impact Analysis (Blast Radius):** If provided, format the impact analysis into a Markdown table. Use this to explain the potential downstream effects of the changes.
+- **PR Health Score:** Display a visual score using shield emojis (e.g., "🛡️🛡️🛡️🛡️🛡️" for 100, "🛡️🛡️🛡️" for 60) and the numerical score (e.g., "85/100").
+- **Impact Analysis (Blast Radius):** If provided, format the impact analysis into a sleek Markdown table with severity indicators. Use this to explain the potential downstream effects of the changes across the graph.
 - **Follow-up Status:** If there was a previous review, include a section summarizing which important issues have been fixed and which still remain (e.g. "Critical issue X found previously has now been fixed", or "Critical issue Y is still found on line Z").
 - **Thematic Summary:** Briefly group the Architect's findings into themes (e.g., "The review identified several potential race conditions and a critical security flaw related to input validation.").
 
@@ -70,7 +70,17 @@ You MUST output a single, valid JSON object. Do not include any text outside of 
 	userPrompt := fmt.Sprintf("Raw Architect Review:\n%s", rawReview)
 	if len(aggregated) > 0 {
 		impactMD := "\n\n### 🔍 Impact Analysis (Blast Radius)\n"
-		impactMD += fmt.Sprintf("#### PR Health Score: %d/100\n", healthScore)
+
+		// Visual Shield Score
+		shields := ""
+		for i := 0; i < 5; i++ {
+			if healthScore >= (i+1)*20 {
+				shields += "🛡️"
+			} else {
+				shields += "⚪"
+			}
+		}
+		impactMD += fmt.Sprintf("#### PR Health Score: %s (%d/100)\n", shields, healthScore)
 
 		tiers := []ImpactTier{TierBreaking, TierLogic, TierLeaf}
 		for _, tier := range tiers {
