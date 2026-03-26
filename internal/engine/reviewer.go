@@ -77,7 +77,7 @@ func (e *ReviewerEngine) RunReview(ctx context.Context, owner, repo string, prNu
 
 	// 6. Sync Review to Dashboard (Diplomat)
 	fmt.Println("Diplomat is syncing review to dashboard...")
-	if err := e.Diplomat.SubmitReviewToDashboard(ctx, owner, repo, prNumber, reviewResult); err != nil {
+	if err := e.Diplomat.SubmitReviewToDashboard(ctx, owner, repo, pr, reviewResult, healthScore); err != nil {
 		fmt.Printf("Warning: Diplomat dashboard sync failed: %v\n", err)
 	}
 

@@ -26,6 +26,7 @@ type PullRequest struct {
 	ID             int
 	Title          string
 	Description    string
+	Author         string
 	BaseBranch     string
 	HeadBranch     string
 	HeadSHA        string
@@ -52,11 +53,23 @@ type AgentMetadata struct {
 	Model string `json:"model"`
 }
 
-type StandardizedReviewJSON struct {
-	AgentMetadata AgentMetadata `json:"agent_metadata"`
-	Summary       struct {
-		Verdict           Verdict `json:"verdict"`
-		OverallLogicScore int     `json:"overall_logic_score"`
-	} `json:"summary"`
-	Reviews []ReviewComment `json:"reviews"`
+type DashboardViolation struct {
+	File       string   `json:"file"`
+	LineNumber int      `json:"line_number"`
+	Severity   Severity `json:"severity"`
+	RuleCode   string   `json:"rule_code"`
+	Message    string   `json:"message"`
+	Suggestion string   `json:"suggestion"`
+}
+
+type DashboardReviewPayload struct {
+	PRID             string               `json:"pr_id"`
+	PRURL            string               `json:"pr_url"`
+	Author           string               `json:"author"`
+	Branch           string               `json:"branch"`
+	Verdict          Verdict              `json:"verdict"`
+	Summary          string               `json:"summary"`
+	Violations       []DashboardViolation `json:"violations"`
+	HealthScoreDelta int                  `json:"health_score_delta"`
+	ReviewedAt       string               `json:"reviewed_at"`
 }

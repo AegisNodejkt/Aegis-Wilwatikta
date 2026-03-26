@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"time"
 
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/domain"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/provider"
@@ -134,24 +135,33 @@ You MUST output a single, valid JSON object. Do not include any text outside of 
 
 	return &result, nil
 }
-func (d *Diplomat) SubmitReviewToDashboard(ctx context.Context, owner, repo string, prNumber int, result *domain.ReviewResult) error {
+func (d *Diplomat) SubmitReviewToDashboard(ctx context.Context, owner, repo string, pr *domain.PullRequest, result *domain.ReviewResult, healthScore int) error {
 	if d.dashboardURL == "" || d.dashboardAPIKey == "" {
 		return nil
 	}
 
-	payload := domain.StandardizedReviewJSON{
-		AgentMetadata: domain.AgentMetadata{
-			ID:    "aegis_diplomat_v1",
-			Model: d.model,
-		},
-		Summary: struct {
-			Verdict           domain.Verdict `json:"verdict"`
-			OverallLogicScore int            `json:"overall_logic_score"`
-		}{
-			Verdict:           result.Verdict,
-			OverallLogicScore: 100, // TODO: Calculate this properly if needed
-		},
-		Reviews: result.Reviews,
+	violations := make([]domain.DashboardViolation, 0)
+	for _, r := range result.Reviews {
+		violations = append(violations, domain.DashboardViolation{
+			File:       r.File,
+			LineNumber: r.Line,
+			Severity:   r.Severity,
+			RuleCode:   "ARCH_VIOLATION", // Default rule code
+			Message:    r.Issue,
+			Suggestion: r.Suggestion,
+		})
+	}
+
+	payload := domain.DashboardReviewPayload{
+		PRID:             fmt.Sprintf("PR-%d", pr.ID),
+		PRURL:            fmt.Sprintf("https://github.com/%s/%s/pull/%d", owner, repo, pr.ID),
+		Author:           pr.Author,
+		Branch:           pr.HeadBranch,
+		Verdict:          result.Verdict,
+		Summary:          result.Summary,
+		Violations:       violations,
+		HealthScoreDelta: healthScore - 100, // Negative value for impact
+		ReviewedAt:       time.Now().Format(time.RFC3339),
 	}
 
 	body, err := json.Marshal(payload)
