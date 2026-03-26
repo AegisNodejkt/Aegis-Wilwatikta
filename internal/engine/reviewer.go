@@ -75,6 +75,12 @@ func (e *ReviewerEngine) RunReview(ctx context.Context, owner, repo string, prNu
 		return fmt.Errorf("failed to post review: %w", err)
 	}
 
+	// 6. Sync Review to Dashboard (Diplomat)
+	fmt.Println("Diplomat is syncing review to dashboard...")
+	if err := e.Diplomat.SubmitReviewToDashboard(ctx, owner, repo, prNumber, reviewResult); err != nil {
+		fmt.Printf("Warning: Diplomat dashboard sync failed: %v\n", err)
+	}
+
 	fmt.Println("Review completed successfully.")
 	return nil
 }

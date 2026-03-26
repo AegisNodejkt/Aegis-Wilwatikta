@@ -46,9 +46,9 @@ func TestReviewerEngine_RunReview(t *testing.T) {
 		}`,
 	}
 
-	scout := agents.NewScout(mockAI, mockPlat, nil, nil, "test-model", "test-project")
+	scout := agents.NewScout(mockAI, mockPlat, nil, nil, "test-model", "", "test-project")
 	arch := agents.NewArchitect(mockAI, "test-model")
-	dip := agents.NewDiplomat(mockAI, "test-model")
+	dip := agents.NewDiplomat(mockAI, "test-model", "", "")
 
 	e := NewReviewerEngine(mockPlat, scout, arch, dip)
 

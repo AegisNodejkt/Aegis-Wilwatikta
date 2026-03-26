@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/aegis-wilwatikta/ai-reviewer/internal/config"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/domain"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/embedding"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/rag/parser"
@@ -30,40 +31,32 @@ func main() {
 		targetFiles = nil
 	}
 
-	// Configuration (In production, these come from Env/YAML)
-	neo4jURI := os.Getenv("NEO4J_URI")
-	neo4jUser := os.Getenv("NEO4J_USER")
-	neo4jPass := os.Getenv("NEO4J_PASS")
-	neo4jDB := os.Getenv("NEO4J_DATABASE")
-
-	if neo4jURI == "" {
-		log.Fatal("NEO4J_URI is required")
-	}
-	if neo4jDB == "" {
-		neo4jDB = "neo4j" // Default to "neo4j" if not specified
+	// 1. Load Configuration
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		log.Fatalf("failed to load config: %v", err)
 	}
 
-	// Initialize components
+	// Override project ID from flag if provided
+	if projectIDFlag != "" {
+		cfg.ProjectID = projectIDFlag
+	}
+
+	// 2. Initialize components
 	var embedder embedding.EmbeddingProvider
-	var err error
-	provider := os.Getenv("EMBEDDING_PROVIDER")
-	if provider == "" {
-		provider = "google"
-	}
+	provider := cfg.RAG.EmbeddingProvider
 
 	switch provider {
 	case "google":
-		geminiKey := os.Getenv("GEMINI_API_KEY")
-		if geminiKey == "" {
+		if cfg.GeminiAPIKey == "" {
 			log.Fatal("GEMINI_API_KEY is required for google embedding provider")
 		}
-		embedder, err = embedding.NewGoogleEmbeddingProvider(ctx, geminiKey, "")
+		embedder, err = embedding.NewGoogleEmbeddingProvider(ctx, cfg.GeminiAPIKey, "")
 	case "openai":
-		openaiKey := os.Getenv("OPENAI_API_KEY")
-		if openaiKey == "" {
+		if cfg.OpenAIAPIKey == "" {
 			log.Fatal("OPENAI_API_KEY is required for openai embedding provider")
 		}
-		embedder = embedding.NewOpenAIEmbeddingProvider(openaiKey, "")
+		embedder = embedding.NewOpenAIEmbeddingProvider(cfg.OpenAIAPIKey, "")
 	default:
 		log.Fatalf("unsupported embedding provider: %s", provider)
 	}
@@ -72,22 +65,19 @@ func main() {
 		log.Fatalf("failed to init embedder: %v", err)
 	}
 
-	graph, err := store.NewNeo4jStore(neo4jURI, neo4jUser, neo4jPass, neo4jDB)
+	if cfg.RAG.Neo4jURI == "" {
+		log.Fatal("NEO4J_URI is required")
+	}
+
+	graph, err := store.NewNeo4jStore(cfg.RAG.Neo4jURI, cfg.RAG.Neo4jUser, cfg.RAG.Neo4jPass, cfg.RAG.Neo4jDB)
 	if err != nil {
 		log.Fatalf("failed to init graph store: %v", err)
 	}
 
-	projectID := os.Getenv("PROJECT_ID")
-	if projectID == "" {
-		projectID = projectIDFlag
-	}
-	if projectID == "" {
-		projectID = deriveProjectID()
-	}
-
+	projectID := cfg.ProjectID
 	if command == "cleanup" {
 		fmt.Printf("Cleaning up project %s...\n", projectID)
-		err = graph.DeleteNodesByProject(ctx, projectID)
+		err = graph.DeleteNodesByProject(ctx, cfg.TenantID, projectID)
 		if err != nil {
 			log.Fatalf("cleanup failed: %v", err)
 		}
@@ -103,7 +93,7 @@ func main() {
 			if !codeParser.Supports(filepath.Ext(path)) {
 				continue
 			}
-			err = indexFile(ctx, projectID, path, codeParser, embedder, graph)
+			err = indexFile(ctx, cfg.TenantID, projectID, path, codeParser, embedder, graph)
 			if err != nil {
 				log.Printf("failed to index %s: %v", path, err)
 			}
@@ -117,7 +107,7 @@ func main() {
 				return nil
 			}
 
-			return indexFile(ctx, projectID, path, codeParser, embedder, graph)
+			return indexFile(ctx, cfg.TenantID, projectID, path, codeParser, embedder, graph)
 		})
 	}
 
@@ -128,7 +118,7 @@ func main() {
 	fmt.Println("Indexing completed successfully.")
 }
 
-func indexFile(ctx context.Context, projectID, path string, cp *parser.TSParser, emb embedding.EmbeddingProvider, graph store.GraphStore) error {
+func indexFile(ctx context.Context, tenantID, projectID, path string, cp *parser.TSParser, emb embedding.EmbeddingProvider, graph store.GraphStore) error {
 	content, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -142,6 +132,7 @@ func indexFile(ctx context.Context, projectID, path string, cp *parser.TSParser,
 	// Find the file node
 	var fileNode domain.CodeNode
 	for i := range nodes {
+		nodes[i].TenantID = tenantID
 		nodes[i].ProjectID = projectID
 		if nodes[i].Kind == domain.KindFile {
 			fileNode = nodes[i]
@@ -149,7 +140,7 @@ func indexFile(ctx context.Context, projectID, path string, cp *parser.TSParser,
 	}
 
 	// Check if file has changed structurally
-	oldHash, err := graph.GetFileHash(ctx, projectID, path)
+	oldHash, err := graph.GetFileHash(ctx, tenantID, projectID, path)
 	if err == nil && oldHash == fileNode.SignatureHash {
 		fmt.Printf("Skipping %s (no structural changes)\n", path)
 		return nil
@@ -158,7 +149,7 @@ func indexFile(ctx context.Context, projectID, path string, cp *parser.TSParser,
 	fmt.Printf("Indexing %s...\n", path)
 
 	// Prune old nodes before re-indexing (except the file node itself which we'll upsert)
-	err = graph.DeleteNodesByFile(ctx, projectID, path)
+	err = graph.DeleteNodesByFile(ctx, tenantID, projectID, path)
 	if err != nil {
 		log.Printf("warning: failed to prune old nodes for %s: %v", path, err)
 	}
@@ -177,6 +168,7 @@ func indexFile(ctx context.Context, projectID, path string, cp *parser.TSParser,
 	}
 
 	for _, rel := range relations {
+		rel.TenantID = tenantID
 		rel.ProjectID = projectID
 		graph.UpsertRelation(ctx, rel)
 	}

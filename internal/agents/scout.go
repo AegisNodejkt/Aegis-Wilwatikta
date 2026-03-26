@@ -19,16 +19,18 @@ type Scout struct {
 	graphStore store.GraphStore
 	embedder   embedding.EmbeddingProvider
 	model      string
+	tenantID   string
 	projectID  string
 }
 
-func NewScout(p provider.AIProvider, plat platform.Platform, gs store.GraphStore, emb embedding.EmbeddingProvider, model, projectID string) *Scout {
+func NewScout(p provider.AIProvider, plat platform.Platform, gs store.GraphStore, emb embedding.EmbeddingProvider, model, tenantID, projectID string) *Scout {
 	return &Scout{
 		provider:   p,
 		platform:   plat,
 		graphStore: gs,
 		embedder:   emb,
 		model:      model,
+		tenantID:   tenantID,
 		projectID:  projectID,
 	}
 }
@@ -53,7 +55,7 @@ func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domai
 	// 1. RAG-based context gathering (Primary)
 	if s.graphStore != nil {
 		for _, diff := range pr.Diffs {
-			impact, err := s.graphStore.GetImpactContext(ctx, s.projectID, diff.Path)
+			impact, err := s.graphStore.GetImpactContext(ctx, s.tenantID, s.projectID, diff.Path)
 			if err == nil && impact != nil {
 				reports = append(reports, impact)
 				if impact.BlastRadiusScore > 10 { // Threshold for "Fragile Nodes"
@@ -72,7 +74,7 @@ func (s *Scout) GatherContext(ctx context.Context, owner, repo string, pr *domai
 			// Generate embedding for the diff content
 			emb, err := s.embedder.EmbedText(ctx, diff.Content)
 			if err == nil {
-				relatedNodes, err := s.graphStore.FindRelatedByEmbedding(ctx, s.projectID, emb, 5)
+				relatedNodes, err := s.graphStore.FindRelatedByEmbedding(ctx, s.tenantID, s.projectID, emb, 5)
 				if err == nil {
 					for _, node := range relatedNodes {
 						relatedFiles = append(relatedFiles, node.Path)

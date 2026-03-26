@@ -27,7 +27,7 @@ func (s *Neo4jStore) UpsertNode(ctx context.Context, node domain.CodeNode) error
 	defer session.Close(ctx)
 
 	query := `
-	MERGE (n:CodeNode {id: $id, project_id: $project_id})
+	MERGE (n:CodeNode {id: $id, project_id: $project_id, tenant_id: $tenant_id})
 	SET n.name = $name,
 	    n.kind = $kind,
 	    n.path = $path,
@@ -39,6 +39,7 @@ func (s *Neo4jStore) UpsertNode(ctx context.Context, node domain.CodeNode) error
 	`
 	params := map[string]interface{}{
 		"id":             node.ID,
+		"tenant_id":      node.TenantID,
 		"project_id":     node.ProjectID,
 		"name":           node.Name,
 		"kind":           string(node.Kind),
@@ -82,16 +83,22 @@ func (s *Neo4jStore) UpsertRelation(ctx context.Context, rel domain.CodeRelation
 	return err
 }
 
-func (s *Neo4jStore) GetImpactContext(ctx context.Context, projectID, filePath string) (*domain.ImpactReport, error) {
+func (s *Neo4jStore) GetImpactContext(ctx context.Context, tenantID, projectID, filePath string) (*domain.ImpactReport, error) {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
+	params := map[string]interface{}{
+		"path":       filePath,
+		"tenant_id":  tenantID,
+		"project_id": projectID,
+	}
+
 	query := `
-	MATCH (target:CodeNode {path: $path, project_id: $project_id})
+	MATCH (target:CodeNode {path: $path, project_id: $project_id, tenant_id: $tenant_id})
 	WHERE target.kind <> 'FILE'
-	OPTIONAL MATCH (affected:CodeNode {project_id: $project_id})-[r:CALLS|IMPLEMENTS|USES*1..2]->(target)
+	OPTIONAL MATCH (affected:CodeNode {project_id: $project_id, tenant_id: $tenant_id})-[r:CALLS|IMPLEMENTS|USES*1..2]->(target)
 	WITH target, affected, r
-	OPTIONAL MATCH (all_affected:CodeNode {project_id: $project_id})-[:CALLS|IMPLEMENTS|USES]->(target)
+	OPTIONAL MATCH (all_affected:CodeNode {project_id: $project_id, tenant_id: $tenant_id})-[:CALLS|IMPLEMENTS|USES]->(target)
 	RETURN
 		target,
 		collect({
@@ -101,7 +108,7 @@ func (s *Neo4jStore) GetImpactContext(ctx context.Context, projectID, filePath s
 		}) AS impact_list,
 		count(DISTINCT all_affected) AS blast_radius
 	`
-	params := map[string]interface{}{
+	params = map[string]interface{}{
 		"path":       filePath,
 		"project_id": projectID,
 	}
@@ -159,17 +166,18 @@ func (s *Neo4jStore) GetImpactContext(ctx context.Context, projectID, filePath s
 	return result.(*domain.ImpactReport), nil
 }
 
-func (s *Neo4jStore) QueryContext(ctx context.Context, projectID, filePath string) ([]domain.CodeNode, error) {
+func (s *Neo4jStore) QueryContext(ctx context.Context, tenantID, projectID, filePath string) ([]domain.CodeNode, error) {
 	return nil, nil
 }
 
-func (s *Neo4jStore) GetFileHash(ctx context.Context, projectID, path string) (string, error) {
+func (s *Neo4jStore) GetFileHash(ctx context.Context, tenantID, projectID, path string) (string, error) {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
-	query := `MATCH (f:CodeNode {id: $id, kind: 'FILE', project_id: $project_id}) RETURN f.signature_hash AS hash`
+	query := `MATCH (f:CodeNode {id: $id, kind: 'FILE', project_id: $project_id, tenant_id: $tenant_id}) RETURN f.signature_hash AS hash`
 	params := map[string]interface{}{
 		"id":         path,
+		"tenant_id":  tenantID,
 		"project_id": projectID,
 	}
 
@@ -192,17 +200,18 @@ func (s *Neo4jStore) GetFileHash(ctx context.Context, projectID, path string) (s
 	return result.(string), nil
 }
 
-func (s *Neo4jStore) DeleteNodesByFile(ctx context.Context, projectID, path string) error {
+func (s *Neo4jStore) DeleteNodesByFile(ctx context.Context, tenantID, projectID, path string) error {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
 	query := `
-	MATCH (n:CodeNode {path: $path, project_id: $project_id})
+	MATCH (n:CodeNode {path: $path, project_id: $project_id, tenant_id: $tenant_id})
 	WHERE n.kind <> 'FILE'
 	DETACH DELETE n
 	`
 	params := map[string]interface{}{
 		"path":       path,
+		"tenant_id":  tenantID,
 		"project_id": projectID,
 	}
 
@@ -212,15 +221,16 @@ func (s *Neo4jStore) DeleteNodesByFile(ctx context.Context, projectID, path stri
 	return err
 }
 
-func (s *Neo4jStore) DeleteNodesByProject(ctx context.Context, projectID string) error {
+func (s *Neo4jStore) DeleteNodesByProject(ctx context.Context, tenantID, projectID string) error {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeWrite, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
 	query := `
-	MATCH (n:CodeNode {project_id: $project_id})
+	MATCH (n:CodeNode {project_id: $project_id, tenant_id: $tenant_id})
 	DETACH DELETE n
 	`
 	params := map[string]interface{}{
+		"tenant_id":  tenantID,
 		"project_id": projectID,
 	}
 
@@ -230,14 +240,14 @@ func (s *Neo4jStore) DeleteNodesByProject(ctx context.Context, projectID string)
 	return err
 }
 
-func (s *Neo4jStore) FindRelatedByEmbedding(ctx context.Context, projectID string, embedding []float32, limit int) ([]domain.CodeNode, error) {
+func (s *Neo4jStore) FindRelatedByEmbedding(ctx context.Context, tenantID, projectID string, embedding []float32, limit int) ([]domain.CodeNode, error) {
 	session := s.driver.NewSession(ctx, neo4j.SessionConfig{AccessMode: neo4j.AccessModeRead, DatabaseName: s.databaseName})
 	defer session.Close(ctx)
 
 	// Note: This requires Neo4j 5.x with Vector index.
 	// This is a placeholder for a generic similarity query if index is not present.
 	query := `
-	MATCH (n:CodeNode {project_id: $project_id})
+	MATCH (n:CodeNode {project_id: $project_id, tenant_id: $tenant_id})
 	WHERE n.embedding IS NOT NULL
 	RETURN n, gds.similarity.cosine(n.embedding, $embedding) AS score
 	ORDER BY score DESC
@@ -246,6 +256,7 @@ func (s *Neo4jStore) FindRelatedByEmbedding(ctx context.Context, projectID strin
 	params := map[string]interface{}{
 		"embedding":  embedding,
 		"limit":      limit,
+		"tenant_id":  tenantID,
 		"project_id": projectID,
 	}
 

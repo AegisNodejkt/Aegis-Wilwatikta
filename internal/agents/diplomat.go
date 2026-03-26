@@ -8,15 +8,24 @@ import (
 
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/domain"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/provider"
+	"net/http"
+	"bytes"
 )
 
 type Diplomat struct {
-	provider provider.AIProvider
-	model    string
+	provider         provider.AIProvider
+	model            string
+	dashboardURL     string
+	dashboardAPIKey string
 }
 
-func NewDiplomat(p provider.AIProvider, model string) *Diplomat {
-	return &Diplomat{provider: p, model: model}
+func NewDiplomat(p provider.AIProvider, model, dashboardURL, dashboardAPIKey string) *Diplomat {
+	return &Diplomat{
+		provider:         p,
+		model:            model,
+		dashboardURL:     dashboardURL,
+		dashboardAPIKey: dashboardAPIKey,
+	}
 }
 
 func (d *Diplomat) FormatReview(ctx context.Context, rawReview string, aggregated map[ImpactTier][]AggregatedImpact, healthScore int) (*domain.ReviewResult, error) {
@@ -112,7 +121,7 @@ You MUST output a single, valid JSON object. Do not include any text outside of 
 	}
 
 	// Extract JSON block using regex to be more robust
-	re := regexp.MustCompile("(?s)\\{.*\\}")
+	re := regexp.MustCompile(`(?s)\{.*\}`)
 	jsonStr := re.FindString(response)
 	if jsonStr == "" {
 		return nil, fmt.Errorf("could not find JSON block in diplomat response: %s", response)
@@ -124,4 +133,51 @@ You MUST output a single, valid JSON object. Do not include any text outside of 
 	}
 
 	return &result, nil
+}
+func (d *Diplomat) SubmitReviewToDashboard(ctx context.Context, owner, repo string, prNumber int, result *domain.ReviewResult) error {
+	if d.dashboardURL == "" || d.dashboardAPIKey == "" {
+		return nil
+	}
+
+	payload := domain.StandardizedReviewJSON{
+		AgentMetadata: domain.AgentMetadata{
+			ID:    "aegis_diplomat_v1",
+			Model: d.model,
+		},
+		Summary: struct {
+			Verdict           domain.Verdict `json:"verdict"`
+			OverallLogicScore int            `json:"overall_logic_score"`
+		}{
+			Verdict:           result.Verdict,
+			OverallLogicScore: 100, // TODO: Calculate this properly if needed
+		},
+		Reviews: result.Reviews,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	url := fmt.Sprintf("%s/api/v1/webhook/review", d.dashboardURL)
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(body))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", d.dashboardAPIKey))
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("dashboard webhook failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return fmt.Errorf("dashboard webhook returned status: %d", resp.StatusCode)
+	}
+
+	return nil
 }
