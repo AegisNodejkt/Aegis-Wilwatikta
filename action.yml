@@ -19,6 +19,21 @@ inputs:
   gemini_api_key:
     description: 'API key for Gemini'
     required: false
+  repository:
+    description: 'The repository name (owner/repo)'
+    required: false
+  pr_number:
+    description: 'The pull request number'
+    required: false
+  aegeis_dashboard_url:
+    description: 'Aegis Dashboard URL'
+    required: false
+  aegeis_dashboard_api_key:
+    description: 'Aegis Dashboard API Key'
+    required: false
+  tenant_id:
+    description: 'Tenant ID for isolation'
+    required: false
   neo4j_uri:
     description: 'Neo4j connection URI'
     required: false
@@ -41,8 +56,11 @@ runs:
     OPENAI_API_KEY: ${{ inputs.openai_api_key }}
     PROVIDER: ${{ inputs.provider }}
     PLATFORM: ${{ inputs.platform }}
-    REPOSITORY_NAME: ${{ github.repository }}
-    PR_NUMBER: ${{ github.event.pull_request.number }}
+    REPOSITORY_NAME: ${{ inputs.repository }}
+    PR_NUMBER: ${{ inputs.pr_number }}
+    AEGIS_DASHBOARD_URL: ${{ inputs.aegeis_dashboard_url }}
+    AEGIS_DASHBOARD_API_KEY: ${{ inputs.aegeis_dashboard_api_key }}
+    TENANT_ID: ${{ inputs.tenant_id }}
     NEO4J_URI: ${{ inputs.neo4j_uri }}
     NEO4J_USER: ${{ inputs.neo4j_user }}
     NEO4J_PASS: ${{ inputs.neo4j_pass }}

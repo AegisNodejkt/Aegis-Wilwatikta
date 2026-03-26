@@ -20,9 +20,15 @@ jobs:
         uses: ./
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           provider: ${{ secrets.PROVIDER }}
           platform: 'github'
+          repository: ${{ github.repository }}
+          pr_number: ${{ github.event.pull_request.number }}
+          aegeis_dashboard_url: ${{ secrets.AEGIS_DASHBOARD_URL }}
+          aegeis_dashboard_api_key: ${{ secrets.AEGIS_DASHBOARD_API_KEY }}
+          tenant_id: ${{ secrets.TENANT_ID }}
           neo4j_uri: ${{ secrets.NEO4J_URI }}
           neo4j_user: ${{ secrets.NEO4J_USER }}
           neo4j_pass: ${{ secrets.NEO4J_PASS }}
@@ -39,6 +45,8 @@ jobs:
           NEO4J_PASS: ${{ secrets.NEO4J_PASS }}
           NEO4J_DATABASE: ${{ secrets.NEO4J_DATABASE }}
           REPOSITORY_NAME: ${{ github.repository }}
+          TENANT_ID: ${{ secrets.TENANT_ID }}
           PROVIDER: ${{ secrets.PROVIDER }}
           EMBEDDING_PROVIDER: ${{ secrets.PROVIDER }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
