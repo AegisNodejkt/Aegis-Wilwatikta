@@ -23,9 +23,9 @@ const (
 	RelContains   RelationType = "CONTAINS"
 )
 
-// CodeNode represents an entity in the codebase (func, struct, etc.)
 type CodeNode struct {
 	ID            string    `json:"id"`
+	TenantID      string    `json:"tenant_id"`
 	ProjectID     string    `json:"project_id"`
 	Name          string    `json:"name"`
 	Kind          NodeKind  `json:"kind"`
@@ -37,10 +37,10 @@ type CodeNode struct {
 	Embedding     []float32 `json:"embedding,omitempty"`
 }
 
-// CodeRelation connects two CodeNodes
 type CodeRelation struct {
 	From      string                 `json:"from_id"`
 	To        string                 `json:"to_id"`
+	TenantID  string                 `json:"tenant_id"`
 	ProjectID string                 `json:"project_id"`
 	Type      RelationType           `json:"type"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`

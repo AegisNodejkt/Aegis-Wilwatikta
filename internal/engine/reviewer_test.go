@@ -12,9 +12,11 @@ type MockPlatform struct{}
 
 func (m *MockPlatform) GetPullRequest(ctx context.Context, owner, repo string, prNumber int) (*domain.PullRequest, error) {
 	return &domain.PullRequest{
-		ID:    prNumber,
-		Title: "Test PR",
-		Diffs: []domain.FileDiff{{Path: "main.go", Content: "diff content"}},
+		ID:         prNumber,
+		Title:      "Test PR",
+		Author:     "test-author",
+		HeadBranch: "test-branch",
+		Diffs:      []domain.FileDiff{{Path: "main.go", Content: "diff content"}},
 	}, nil
 }
 func (m *MockPlatform) PostReview(ctx context.Context, owner, repo string, pr *domain.PullRequest, review *domain.ReviewResult) error {
@@ -46,9 +48,9 @@ func TestReviewerEngine_RunReview(t *testing.T) {
 		}`,
 	}
 
-	scout := agents.NewScout(mockAI, mockPlat, nil, nil, "test-model", "test-project")
+	scout := agents.NewScout(mockAI, mockPlat, nil, nil, "test-model", "", "test-project")
 	arch := agents.NewArchitect(mockAI, "test-model")
-	dip := agents.NewDiplomat(mockAI, "test-model")
+	dip := agents.NewDiplomat(mockAI, "test-model", "", "")
 
 	e := NewReviewerEngine(mockPlat, scout, arch, dip)
 
