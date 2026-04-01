@@ -9,7 +9,8 @@ import (
 )
 
 type GeminiProvider struct {
-	client *genai.Client
+	client  *genai.Client
+	limiter RateLimiter
 }
 
 func NewGeminiProvider(ctx context.Context, apiKey string) (*GeminiProvider, error) {
@@ -17,10 +18,30 @@ func NewGeminiProvider(ctx context.Context, apiKey string) (*GeminiProvider, err
 	if err != nil {
 		return nil, err
 	}
-	return &GeminiProvider{client: client}, nil
+	return &GeminiProvider{
+		client:  client,
+		limiter: NewGeminiRateLimiter(),
+	}, nil
+}
+
+func NewGeminiProviderWithLimiter(ctx context.Context, apiKey string, limiter RateLimiter) (*GeminiProvider, error) {
+	client, err := genai.NewClient(ctx, option.WithAPIKey(apiKey))
+	if err != nil {
+		return nil, err
+	}
+	return &GeminiProvider{
+		client:  client,
+		limiter: limiter,
+	}, nil
 }
 
 func (p *GeminiProvider) SendMessage(ctx context.Context, systemPrompt string, userPrompt string, modelName string) (string, error) {
+	if p.limiter != nil {
+		if err := p.limiter.Wait(ctx); err != nil {
+			return "", fmt.Errorf("rate limit wait failed: %w", err)
+		}
+	}
+
 	model := p.client.GenerativeModel(modelName)
 	model.SystemInstruction = &genai.Content{
 		Parts: []genai.Part{genai.Text(systemPrompt)},
@@ -47,4 +68,8 @@ func (p *GeminiProvider) SendMessage(ctx context.Context, systemPrompt string, u
 
 func (p *GeminiProvider) Name() string {
 	return "gemini"
+}
+
+func (p *GeminiProvider) Close() error {
+	return p.client.Close()
 }
