@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/agents"
+	"github.com/aegis-wilwatikta/ai-reviewer/internal/domain"
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/platform"
 )
 
@@ -22,6 +23,54 @@ func NewReviewerEngine(plat platform.Platform, scout *agents.Scout, arch *agents
 		Architect: arch,
 		Diplomat:  dip,
 	}
+}
+
+type ReviewPhases struct {
+	PR           *domain.PullRequest
+	RawReview    string
+	HealthScore  int
+	ReviewResult *domain.ReviewResult
+}
+
+func (e *ReviewerEngine) RunReviewPhases(ctx context.Context, owner, repo string, prNumber int, lastReview *domain.ReviewResult) (*ReviewPhases, error) {
+	fmt.Printf("Starting review for %s/%s PR #%d\n", owner, repo, prNumber)
+
+	pr, err := e.Platform.GetPullRequest(ctx, owner, repo, prNumber)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch PR: %w", err)
+	}
+
+	if lastReview != nil {
+		pr.PreviousReview = lastReview
+	}
+
+	fmt.Println("Scout is gathering context...")
+	additionalContext, reports, err := e.Scout.GatherContext(ctx, owner, repo, pr)
+	if err != nil {
+		fmt.Printf("Warning: Scout context gathering failed: %v\n", err)
+	}
+
+	fmt.Println("Architect is reviewing changes...")
+	rawReview, err := e.Architect.Review(ctx, pr, additionalContext)
+	if err != nil {
+		return nil, fmt.Errorf("architect review failed: %w", err)
+	}
+
+	aggregated := agents.AggregateImpacts(reports)
+	healthScore := agents.CalculateHealthScore(aggregated)
+
+	fmt.Println("Diplomat is formatting feedback...")
+	reviewResult, err := e.Diplomat.FormatReview(ctx, rawReview, aggregated, healthScore)
+	if err != nil {
+		return nil, fmt.Errorf("diplomat formatting failed: %w", err)
+	}
+
+	return &ReviewPhases{
+		PR:           pr,
+		RawReview:    rawReview,
+		HealthScore:  healthScore,
+		ReviewResult: reviewResult,
+	}, nil
 }
 
 func (e *ReviewerEngine) RunReview(ctx context.Context, owner, repo string, prNumber int) error {

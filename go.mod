@@ -3,9 +3,12 @@ module github.com/aegis-wilwatikta/ai-reviewer
 go 1.25.0
 
 require (
+	github.com/go-chi/chi/v5 v5.2.5
 	github.com/google/generative-ai-go v0.20.1
 	github.com/google/go-github/v60 v60.0.0
-	github.com/neo4j/neo4j-go-driver/v5 v5.28.4
+	github.com/google/uuid v1.6.0
+	github.com/jackc/pgx/v5 v5.9.1
+	github.com/neo4j/neo4j-go-driver/v6 v6.0.0
 	github.com/sashabaranov/go-openai v1.41.2
 	github.com/smacker/go-tree-sitter v0.0.0-20240827094217-dd81d9e9be82
 	golang.org/x/oauth2 v0.36.0
@@ -26,10 +29,11 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/s2a-go v0.1.9 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.14 // indirect
 	github.com/googleapis/gax-go/v2 v2.17.0 // indirect
-	github.com/neo4j/neo4j-go-driver/v6 v6.0.0 // indirect
+	github.com/jackc/pgpassfile v1.0.0 // indirect
+	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
+	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.61.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.61.0 // indirect
