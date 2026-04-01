@@ -11,8 +11,11 @@ import (
 	"github.com/aegis-wilwatikta/ai-reviewer/internal/domain"
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/golang"
+	"github.com/smacker/go-tree-sitter/javascript"
 	"github.com/smacker/go-tree-sitter/python"
 	"github.com/smacker/go-tree-sitter/rust"
+	"github.com/smacker/go-tree-sitter/typescript/tsx"
+	"github.com/smacker/go-tree-sitter/typescript/typescript"
 )
 
 type TSParser struct {
@@ -20,12 +23,31 @@ type TSParser struct {
 	queries   map[string]string
 }
 
+type ParseResult struct {
+	Nodes     []domain.CodeNode
+	Relations []domain.CodeRelation
+	Errors    []ParseError
+}
+
+type ParseError struct {
+	Message string
+	Line    int
+	Column  int
+}
+
 func NewTSParser() *TSParser {
 	return &TSParser{
 		languages: map[string]*sitter.Language{
-			".go": golang.GetLanguage(),
-			".rs": rust.GetLanguage(),
-			".py": python.GetLanguage(),
+			".go":  golang.GetLanguage(),
+			".rs":  rust.GetLanguage(),
+			".py":  python.GetLanguage(),
+			".js":  javascript.GetLanguage(),
+			".mjs": javascript.GetLanguage(),
+			".cjs": javascript.GetLanguage(),
+			".ts":  typescript.GetLanguage(),
+			".tsx": tsx.GetLanguage(),
+			".mts": typescript.GetLanguage(),
+			".cts": typescript.GetLanguage(),
 		},
 		queries: map[string]string{
 			".go": `
@@ -53,6 +75,93 @@ func NewTSParser() *TSParser {
 (call function: (identifier) @call.name) @call.expr
 (call function: (attribute attribute: (identifier) @call.name)) @call.expr
 `,
+			".js": `
+(function_declaration name: (identifier) @func.name) @func.def
+(function_expression name: (identifier) @func.name) @func.def
+(arrow_function) @func.def
+(method_definition name: (property_identifier) @method.name) @method.def
+(class_declaration name: (identifier) @class.name) @class.def
+(import_statement source: (string) @import.path)
+(export_statement) @export.def
+(call_expression function: (identifier) @call.name) @call.expr
+(call_expression function: (member_expression property: (property_identifier) @call.name)) @call.expr
+`,
+			".mjs": `
+(function_declaration name: (identifier) @func.name) @func.def
+(function_expression name: (identifier) @func.name) @func.def
+(arrow_function) @func.def
+(method_definition name: (property_identifier) @method.name) @method.def
+(class_declaration name: (identifier) @class.name) @class.def
+(import_statement source: (string) @import.path)
+(export_statement) @export.def
+(call_expression function: (identifier) @call.name) @call.expr
+(call_expression function: (member_expression property: (property_identifier) @call.name)) @call.expr
+`,
+			".cjs": `
+(function_declaration name: (identifier) @func.name) @func.def
+(function_expression name: (identifier) @func.name) @func.def
+(arrow_function) @func.def
+(method_definition name: (property_identifier) @method.name) @method.def
+(class_declaration name: (identifier) @class.name) @class.def
+(import_statement source: (string) @import.path)
+(export_statement) @export.def
+(call_expression function: (identifier) @call.name) @call.expr
+(call_expression function: (member_expression property: (property_identifier) @call.name)) @call.expr
+`,
+			".ts": `
+(function_declaration name: (identifier) @func.name) @func.def
+(function_expression name: (identifier) @func.name) @func.def
+(arrow_function) @func.def
+(method_definition name: (property_identifier) @method.name) @method.def
+(class_declaration name: (type_identifier) @class.name) @class.def
+(interface_declaration name: (type_identifier) @interface.name) @interface.def
+(type_alias_declaration name: (type_identifier) @type.name) @type.def
+(import_statement source: (string) @import.path)
+(export_statement) @export.def
+(call_expression function: (identifier) @call.name) @call.expr
+(call_expression function: (member_expression property: (property_identifier) @call.name)) @call.expr
+`,
+			".tsx": `
+(function_declaration name: (identifier) @func.name) @func.def
+(function_expression name: (identifier) @func.name) @func.def
+(arrow_function) @func.def
+(method_definition name: (property_identifier) @method.name) @method.def
+(class_declaration name: (type_identifier) @class.name) @class.def
+(interface_declaration name: (type_identifier) @interface.name) @interface.def
+(type_alias_declaration name: (type_identifier) @type.name) @type.def
+(import_statement source: (string) @import.path)
+(export_statement) @export.def
+(call_expression function: (identifier) @call.name) @call.expr
+(call_expression function: (member_expression property: (property_identifier) @call.name)) @call.expr
+(jsx_element) @jsx.elem
+(jsx_self_closing_element) @jsx.elem
+`,
+			".mts": `
+(function_declaration name: (identifier) @func.name) @func.def
+(function_expression name: (identifier) @func.name) @func.def
+(arrow_function) @func.def
+(method_definition name: (property_identifier) @method.name) @method.def
+(class_declaration name: (type_identifier) @class.name) @class.def
+(interface_declaration name: (type_identifier) @interface.name) @interface.def
+(type_alias_declaration name: (type_identifier) @type.name) @type.def
+(import_statement source: (string) @import.path)
+(export_statement) @export.def
+(call_expression function: (identifier) @call.name) @call.expr
+(call_expression function: (member_expression property: (property_identifier) @call.name)) @call.expr
+`,
+			".cts": `
+(function_declaration name: (identifier) @func.name) @func.def
+(function_expression name: (identifier) @func.name) @func.def
+(arrow_function) @func.def
+(method_definition name: (property_identifier) @method.name) @method.def
+(class_declaration name: (type_identifier) @class.name) @class.def
+(interface_declaration name: (type_identifier) @interface.name) @interface.def
+(type_alias_declaration name: (type_identifier) @type.name) @type.def
+(import_statement source: (string) @import.path)
+(export_statement) @export.def
+(call_expression function: (identifier) @call.name) @call.expr
+(call_expression function: (member_expression property: (property_identifier) @call.name)) @call.expr
+`,
 		},
 	}
 }
@@ -62,39 +171,62 @@ func (p *TSParser) Supports(extension string) bool {
 	return ok
 }
 
+func (p *TSParser) SupportedExtensions() []string {
+	extensions := make([]string, 0, len(p.languages))
+	for ext := range p.languages {
+		extensions = append(extensions, ext)
+	}
+	return extensions
+}
+
 func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) ([]domain.CodeNode, []domain.CodeRelation, error) {
+	result, err := p.ParseFileWithErrors(ctx, path, content)
+	if err != nil {
+		return nil, nil, err
+	}
+	return result.Nodes, result.Relations, nil
+}
+
+func (p *TSParser) ParseFileWithErrors(ctx context.Context, path string, content []byte) (*ParseResult, error) {
 	ext := filepath.Ext(path)
 	lang, ok := p.languages[ext]
 	if !ok {
-		return nil, nil, fmt.Errorf("unsupported language: %s", ext)
+		return nil, fmt.Errorf("unsupported language: %s", ext)
 	}
 
 	parser := sitter.NewParser()
 	parser.SetLanguage(lang)
 	tree, err := parser.ParseCtx(ctx, nil, content)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer tree.Close()
 	root := tree.RootNode()
 
 	queryStr, ok := p.queries[ext]
 	if !ok {
-		return nil, nil, fmt.Errorf("no query defined for: %s", ext)
+		return nil, fmt.Errorf("no query defined for: %s", ext)
 	}
 
 	q, err := sitter.NewQuery([]byte(queryStr), lang)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	cursor := sitter.NewQueryCursor()
 	cursor.Exec(q, root)
 
-	var nodes []domain.CodeNode
-	var relations []domain.CodeRelation
+	result := &ParseResult{
+		Nodes:     make([]domain.CodeNode, 0),
+		Relations: make([]domain.CodeRelation, 0),
+		Errors:    make([]ParseError, 0),
+	}
 
-	// Add file node (placeholder, will fill hash later)
+	hasErrors := root.HasError()
+	if hasErrors {
+		result.Errors = p.collectErrors(root, content)
+	}
+
 	fileNodeID := path
 	fileNode := domain.CodeNode{
 		ID:   fileNodeID,
@@ -115,7 +247,6 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 	fileHasher.Write(content)
 	contentHash := hex.EncodeToString(fileHasher.Sum(nil))
 
-	// First pass: collect all definitions
 	cursor.Exec(q, root)
 	for {
 		match, ok := cursor.NextMatch()
@@ -147,13 +278,15 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 			}
 
 			nodeID := fmt.Sprintf("%s:%s", path, name)
+			if name == "" {
+				nodeID = fmt.Sprintf("%s:anonymous_%d", path, capture.Node.StartByte())
+			}
 
 			signature := ""
-			// Refine signature extraction (take first line or specific parts)
 			sigNode := capture.Node
 			for i := 0; i < int(sigNode.ChildCount()); i++ {
 				child := sigNode.Child(i)
-				if child.Type() == "block" || child.Type() == "compound_statement" {
+				if child.Type() == "block" || child.Type() == "compound_statement" || child.Type() == "statement_block" {
 					break
 				}
 				signature += string(content[child.StartByte():child.EndByte()])
@@ -174,11 +307,20 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 			nodeContentHasher.Write([]byte(nodeContent))
 			nodeContentHash := hex.EncodeToString(nodeContentHasher.Sum(nil))
 
-			nodes = append(nodes, domain.CodeNode{
+			startLine := int(capture.Node.StartPoint().Row) + 1
+			endLine := int(capture.Node.EndPoint().Row) + 1
+			startColumn := int(capture.Node.StartPoint().Column) + 1
+			endColumn := int(capture.Node.EndPoint().Column) + 1
+
+			result.Nodes = append(result.Nodes, domain.CodeNode{
 				ID:            nodeID,
 				Name:          name,
 				Kind:          kind,
 				Path:          path,
+				StartLine:     startLine,
+				EndLine:       endLine,
+				StartColumn:   startColumn,
+				EndColumn:     endColumn,
 				Signature:     trimmedSignature,
 				SignatureHash: sigHash,
 				Content:       nodeContent,
@@ -191,8 +333,7 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 				end:   capture.Node.EndByte(),
 			})
 
-			// Link file to entity
-			relations = append(relations, domain.CodeRelation{
+			result.Relations = append(result.Relations, domain.CodeRelation{
 				From: fileNodeID,
 				To:   nodeID,
 				Type: domain.RelContains,
@@ -200,14 +341,12 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 		}
 	}
 
-	// Calculate aggregate signature hash for the file
 	aggHasher := sha256.New()
 	aggHasher.Write([]byte(allSignatures))
 	fileNode.SignatureHash = hex.EncodeToString(aggHasher.Sum(nil))
 	fileNode.ContentHash = contentHash
-	nodes = append([]domain.CodeNode{fileNode}, nodes...)
+	result.Nodes = append([]domain.CodeNode{fileNode}, result.Nodes...)
 
-	// Second pass: collect relations (imports and calls)
 	cursor.Exec(q, root)
 	for {
 		match, ok := cursor.NextMatch()
@@ -222,7 +361,7 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 			case "import.path":
 				impPath := string(content[node.StartByte():node.EndByte()])
 				impPath = strings.Trim(impPath, "\"`'")
-				relations = append(relations, domain.CodeRelation{
+				result.Relations = append(result.Relations, domain.CodeRelation{
 					From: fileNodeID,
 					To:   impPath,
 					Type: domain.RelImports,
@@ -239,7 +378,6 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 				}
 
 				if callName != "" {
-					// Find enclosing definition
 					enclosingID := fileNodeID
 					for _, d := range defs {
 						if node.StartByte() >= d.start && node.EndByte() <= d.end {
@@ -248,9 +386,9 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 						}
 					}
 
-					relations = append(relations, domain.CodeRelation{
+					result.Relations = append(result.Relations, domain.CodeRelation{
 						From: enclosingID,
-						To:   callName, // Still just a name, will handle in store
+						To:   callName,
 						Type: domain.RelCalls,
 					})
 				}
@@ -258,5 +396,33 @@ func (p *TSParser) ParseFile(ctx context.Context, path string, content []byte) (
 		}
 	}
 
-	return nodes, relations, nil
+	return result, nil
+}
+
+func (p *TSParser) collectErrors(root *sitter.Node, content []byte) []ParseError {
+	var errors []ParseError
+
+	iterateErrors(root, func(n *sitter.Node) {
+		errors = append(errors, ParseError{
+			Message: "syntax error",
+			Line:    int(n.StartPoint().Row) + 1,
+			Column:  int(n.StartPoint().Column) + 1,
+		})
+	})
+
+	return errors
+}
+
+func iterateErrors(node *sitter.Node, callback func(*sitter.Node)) {
+	if node == nil {
+		return
+	}
+
+	if node.IsError() || node.IsMissing() {
+		callback(node)
+	}
+
+	for i := 0; i < int(node.ChildCount()); i++ {
+		iterateErrors(node.Child(i), callback)
+	}
 }

@@ -3,13 +3,13 @@ package domain
 type NodeKind string
 
 const (
-	KindFunction NodeKind = "FUNCTION"
-	KindStruct   NodeKind = "STRUCT"
+	KindFunction  NodeKind = "FUNCTION"
+	KindStruct    NodeKind = "STRUCT"
 	KindInterface NodeKind = "INTERFACE"
-	KindMethod   NodeKind = "METHOD"
-	KindVariable NodeKind = "VARIABLE"
-	KindPackage  NodeKind = "PACKAGE"
-	KindFile     NodeKind = "FILE"
+	KindMethod    NodeKind = "METHOD"
+	KindVariable  NodeKind = "VARIABLE"
+	KindPackage   NodeKind = "PACKAGE"
+	KindFile      NodeKind = "FILE"
 )
 
 type RelationType string
@@ -30,9 +30,13 @@ type CodeNode struct {
 	Name          string    `json:"name"`
 	Kind          NodeKind  `json:"kind"`
 	Path          string    `json:"path"`
+	StartLine     int       `json:"start_line"`
+	EndLine       int       `json:"end_line"`
+	StartColumn   int       `json:"start_column"`
+	EndColumn     int       `json:"end_column"`
 	Signature     string    `json:"signature"`
 	SignatureHash string    `json:"signature_hash,omitempty"`
-	Content       string    `json:"content"` // Source code snippet
+	Content       string    `json:"content"`
 	ContentHash   string    `json:"content_hash,omitempty"`
 	Embedding     []float32 `json:"embedding,omitempty"`
 }
@@ -69,9 +73,9 @@ type AffectedNode struct {
 
 // ProjectMap represents the project structure
 type ProjectMap struct {
-	RootPath string            `json:"root_path"`
-	Folders  []string          `json:"folders"`
-	Files    []string          `json:"files"`
+	RootPath string   `json:"root_path"`
+	Folders  []string `json:"folders"`
+	Files    []string `json:"files"`
 }
 
 // DependencyLink tracks third-party dependencies
