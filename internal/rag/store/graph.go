@@ -24,3 +24,28 @@ type GraphStore interface {
 	// DeleteNodesByProject removes all nodes and relations associated with a project
 	DeleteNodesByProject(ctx context.Context, projectID string) error
 }
+
+// OptimizedGraphStore extends GraphStore with optimization features
+type OptimizedGraphStore interface {
+	GraphStore
+	// Initialize sets up indexes and other optimizations
+	Initialize(ctx context.Context) error
+	// QueryContextWithTier retrieves context with tier-based limits
+	QueryContextWithTier(ctx context.Context, projectID, filePath string, tier Tier) ([]domain.CodeNode, error)
+	// FindRelatedByEmbeddingWithTier retrieves nodes with tier-based limits
+	FindRelatedByEmbeddingWithTier(ctx context.Context, projectID string, embedding []float32, limit int, tier Tier) ([]domain.CodeNode, error)
+	// BatchUpsertNodes upserts multiple nodes efficiently
+	BatchUpsertNodes(ctx context.Context, nodes []domain.CodeNode) error
+	// BatchUpsertRelations upserts multiple relations efficiently
+	BatchUpsertRelations(ctx context.Context, relations []domain.CodeRelation) error
+	// GetSlowQueries returns queries that exceeded the slow query threshold
+	GetSlowQueries() []QueryMetric
+	// GetCacheStats returns cache statistics
+	GetCacheStats() CacheStats
+	// GetMetrics returns query metrics
+	GetMetrics() MetricsStats
+	// ClearCache clears all cached data
+	ClearCache(ctx context.Context) error
+	// Close closes the connection
+	Close(ctx context.Context) error
+}
