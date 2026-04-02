@@ -179,7 +179,7 @@ func main() {
 func loadConfig() (Config, error) {
 	config := Config{
 		Provider:    "gemini",
-		GeminiModel: "gemini-1.5-flash-latest",
+		GeminiModel: "gemini-2.5-flash-lite",
 		OpenAIModel: "gpt-4o-mini",
 		BaseBranch:  "main",
 	}
@@ -200,10 +200,7 @@ func loadConfig() (Config, error) {
 func getModelForProvider(p string, config Config, tier string) string {
 	if p == "gemini" {
 		if tier == "pro" {
-			return "gemini-1.5-pro-latest"
-		}
-		if config.GeminiModel == "gemini-1.5-flash" {
-			return "gemini-1.5-flash-latest"
+			return "gemini-2.5-pro"
 		}
 		return config.GeminiModel
 	}
