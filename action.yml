@@ -37,6 +37,18 @@ inputs:
   pr_number:
     description: 'Pull Request number'
     required: false
+  scout_model:
+    description: 'Scout model name'
+    required: false
+  arch_model:
+    description: 'Architect model name'
+    required: false
+  dip_model:
+    description: 'Diplomat model name'
+    required: false
+  embedding_provider:
+    description: 'Embedding provider name'
+    required: false
 
 runs:
   using: 'docker'
@@ -53,3 +65,7 @@ runs:
     NEO4J_USER: ${{ inputs.neo4j_user }}
     NEO4J_PASS: ${{ inputs.neo4j_pass }}
     NEO4J_DATABASE: ${{ inputs.neo4j_database }}
+    SCOUT_MODEL: ${{ inputs.scout_model }}
+    ARCH_MODEL: ${{ inputs.arch_model }}
+    DIP_MODEL: ${{ inputs.dip_model }}
+    
