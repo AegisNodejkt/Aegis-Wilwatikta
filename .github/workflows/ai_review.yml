@@ -33,6 +33,7 @@ jobs:
           scout_model: ${{ secrets.SCOUT_MODEL }}
           arch_model: ${{ secrets.ARCHITECT_MODEL }}
           dip_model: ${{ secrets.DIPLOMAT_MODEL }}
+          glm_api_key: ${{ secrets.GLM_API_KEY }}
 
       # --- TAHAP 2: INDEXER (Hanya saat Merge/Push ke Main) ---
       - name: Run Code Indexer
