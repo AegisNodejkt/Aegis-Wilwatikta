@@ -21,6 +21,7 @@ type Config struct {
 	ProjectID   string   `yaml:"project_id"`
 	GeminiModel string   `yaml:"gemini_model"`
 	OpenAIModel string   `yaml:"openai_model"`
+	GLMModel    string   `yaml:"glm_model"`
 	BaseBranch  string   `yaml:"base_branch"`
 	IgnorePaths []string `yaml:"ignore_paths"`
 	RAG         struct {
@@ -92,6 +93,12 @@ func main() {
 			log.Fatal("OPENAI_API_KEY is required for openai provider")
 		}
 		aiProvider = provider.NewOpenAIProvider(apiKey)
+	case "glm":
+		apiKey := os.Getenv("GLM_API_KEY")
+		if apiKey == "" {
+			log.Fatal("GLM_API_KEY is required for glm provider")
+		}
+		aiProvider = provider.NewGLMProvider(apiKey)
 	default:
 		log.Fatalf("unsupported provider: %s", providerType)
 	}
@@ -181,6 +188,7 @@ func loadConfig() (Config, error) {
 		Provider:    "gemini",
 		GeminiModel: "gemini-2.5-flash-lite",
 		OpenAIModel: "gpt-4o-mini",
+		GLMModel:    "glm-4-flash",
 		BaseBranch:  "main",
 	}
 
@@ -209,6 +217,12 @@ func getModelForProvider(p string, config Config, tier string) string {
 			return "gpt-4o"
 		}
 		return config.OpenAIModel
+	}
+	if p == "glm" {
+		if tier == "pro" {
+			return "glm-4"
+		}
+		return config.GLMModel
 	}
 	return ""
 }
