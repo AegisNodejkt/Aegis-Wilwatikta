@@ -68,3 +68,7 @@ func (p *OpenAIProvider) Name() string {
 func (p *OpenAIProvider) GetTokenUsage(resp *openai.ChatCompletionResponse) (int, int) {
 	return resp.Usage.PromptTokens, resp.Usage.CompletionTokens
 }
+
+func (p *OpenAIProvider) ListAvailableModels(ctx context.Context) ([]string, error) {
+	return nil, fmt.Errorf("not implemented")
+}

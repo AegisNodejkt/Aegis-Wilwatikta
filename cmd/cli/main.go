@@ -81,6 +81,11 @@ func main() {
 		if err != nil {
 			log.Fatalf("failed to initialize gemini: %v", err)
 		}
+		models, err := aiProvider.ListAvailableModels(ctx)
+		if err != nil {
+			log.Fatalf("failed to list models: %v", err)
+		}
+		log.Printf("Available models: %v", models)
 	case "openai":
 		apiKey := os.Getenv("OPENAI_API_KEY")
 		if apiKey == "" {
@@ -157,19 +162,24 @@ func main() {
 	dip := agents.NewDiplomat(aiProvider, dipModel)
 
 	// 5. Initialize and Run Engine
-	reviewer := engine.NewReviewerEngine(plat, scout, arch, dip)
+	pipelineConfig := engine.DefaultPipelineConfig()
+	reviewer := engine.NewPipelinedReviewerEngine(plat, scout, arch, dip, pipelineConfig)
 
 	owner, repo := parseRepo(repoName)
-	err = reviewer.RunReview(ctx, owner, repo, prNumber)
+	result, err := reviewer.RunReviewWithGracefulDegradation(ctx, owner, repo, prNumber)
 	if err != nil {
 		log.Fatalf("review failed: %v", err)
+	}
+
+	if result != nil && len(result.Errors) > 0 {
+		log.Printf("Warning: Pipeline encountered errors (fallback might have been used): %v", result.Errors)
 	}
 }
 
 func loadConfig() (Config, error) {
 	config := Config{
 		Provider:    "gemini",
-		GeminiModel: "gemini-1.5-flash",
+		GeminiModel: "gemini-1.5-flash-latest",
 		OpenAIModel: "gpt-4o-mini",
 		BaseBranch:  "main",
 	}
@@ -190,7 +200,10 @@ func loadConfig() (Config, error) {
 func getModelForProvider(p string, config Config, tier string) string {
 	if p == "gemini" {
 		if tier == "pro" {
-			return "gemini-1.5-pro"
+			return "gemini-1.5-pro-latest"
+		}
+		if config.GeminiModel == "gemini-1.5-flash" {
+			return "gemini-1.5-flash-latest"
 		}
 		return config.GeminiModel
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/google/generative-ai-go/genai"
+	"google.golang.org/api/iterator"
 	"google.golang.org/api/option"
 )
 
@@ -73,3 +74,21 @@ func (p *GeminiProvider) Name() string {
 func (p *GeminiProvider) Close() error {
 	return p.client.Close()
 }
+
+func (p *GeminiProvider) ListAvailableModels(ctx context.Context) ([]string, error) {
+	var modelNames []string
+	iter := p.client.ListModels(ctx)
+	for {
+		m, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to list models: %w", err)
+		}
+		// Extracting just the short name (e.g., "gemini-1.5-flash")
+		modelNames = append(modelNames, m.Name)
+	}
+	return modelNames, nil
+}
+
