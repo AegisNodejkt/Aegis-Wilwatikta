@@ -17,14 +17,15 @@ import (
 )
 
 type Config struct {
-	Provider    string   `yaml:"provider"`
-	ProjectID   string   `yaml:"project_id"`
-	GeminiModel string   `yaml:"gemini_model"`
-	OpenAIModel string   `yaml:"openai_model"`
-	GLMModel    string   `yaml:"glm_model"`
-	BaseBranch  string   `yaml:"base_branch"`
-	IgnorePaths []string `yaml:"ignore_paths"`
-	RAG         struct {
+	Provider        string   `yaml:"provider"`
+	ProjectID       string   `yaml:"project_id"`
+	GeminiModel     string   `yaml:"gemini_model"`
+	OpenAIModel     string   `yaml:"openai_model"`
+	GLMModel        string   `yaml:"glm_model"`
+	OpenRouterModel string   `yaml:"openrouter_model"`
+	BaseBranch      string   `yaml:"base_branch"`
+	IgnorePaths     []string `yaml:"ignore_paths"`
+	RAG             struct {
 		Enabled           bool   `yaml:"enabled"`
 		GraphDB           string `yaml:"graph_db"`
 		ConnectionURL     string `yaml:"connection_url"`
@@ -99,6 +100,12 @@ func main() {
 			log.Fatal("GLM_API_KEY is required for glm provider")
 		}
 		aiProvider = provider.NewGLMProvider(apiKey)
+	case "openrouter":
+		apiKey := os.Getenv("OPENROUTER_API_KEY")
+		if apiKey == "" {
+			log.Fatal("OPENROUTER_API_KEY is required for openrouter provider")
+		}
+		aiProvider = provider.NewOpenRouterProvider(apiKey)
 	default:
 		log.Fatalf("unsupported provider: %s", providerType)
 	}
@@ -185,11 +192,12 @@ func main() {
 
 func loadConfig() (Config, error) {
 	config := Config{
-		Provider:    "gemini",
-		GeminiModel: "gemini-2.5-flash-lite",
-		OpenAIModel: "gpt-4o-mini",
-		GLMModel:    "glm-4-flash",
-		BaseBranch:  "main",
+		Provider:        "gemini",
+		GeminiModel:     "gemini-2.5-flash-lite",
+		OpenAIModel:     "gpt-4o-mini",
+		GLMModel:        "glm-4-flash",
+		OpenRouterModel: "qwen/qwen3.6-plus:free",
+		BaseBranch:      "main",
 	}
 
 	f, err := os.Open(".ai-reviewer.yaml")
@@ -223,6 +231,12 @@ func getModelForProvider(p string, config Config, tier string) string {
 			return "glm-4"
 		}
 		return config.GLMModel
+	}
+	if p == "openrouter" {
+		if tier == "pro" {
+			return "meta-llama/llama-3.1-8b-instruct:free"
+		}
+		return config.OpenRouterModel
 	}
 	return ""
 }
