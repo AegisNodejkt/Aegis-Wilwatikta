@@ -208,7 +208,7 @@ func loadConfig() (Config, error) {
 func getModelForProvider(p string, config Config, tier string) string {
 	if p == "gemini" {
 		if tier == "pro" {
-			return "gemini-2.5-pro"
+			return "gemini-2.5-flash"
 		}
 		return config.GeminiModel
 	}

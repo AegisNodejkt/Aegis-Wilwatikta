@@ -14,7 +14,7 @@ type GLMProvider struct {
 
 func NewGLMProvider(apiKey string) *GLMProvider {
 	config := openai.DefaultConfig(apiKey)
-	config.BaseURL = "https://open.bigmodel.cn/api/paas/v4"
+	config.BaseURL = "https://api.z.ai/api/paas/v4/"
 	return &GLMProvider{
 		client:  openai.NewClientWithConfig(config),
 		limiter: NewOpenAIRateLimiter(), // reuse OpenAI rate limiter logic since it has a similar rate format
@@ -23,7 +23,7 @@ func NewGLMProvider(apiKey string) *GLMProvider {
 
 func NewGLMProviderWithLimiter(apiKey string, limiter RateLimiter) *GLMProvider {
 	config := openai.DefaultConfig(apiKey)
-	config.BaseURL = "https://open.bigmodel.cn/api/paas/v4"
+	config.BaseURL = "https://api.z.ai/api/paas/v4/"
 	return &GLMProvider{
 		client:  openai.NewClientWithConfig(config),
 		limiter: limiter,
