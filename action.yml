@@ -19,6 +19,9 @@ inputs:
   glm_api_key:
     description: 'API key for GLM (Zhipu AI)'
     required: false
+  openrouter_api_key:
+    description: 'API key for OpenRouter'
+    required: false
   gemini_api_key:
     description: 'API key for Gemini'
     required: false
@@ -61,6 +64,7 @@ runs:
     GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
     OPENAI_API_KEY: ${{ inputs.openai_api_key }}
     GLM_API_KEY: ${{ inputs.glm_api_key }}
+    OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
     PROVIDER: ${{ inputs.provider }}
     PLATFORM: ${{ inputs.platform }}
     REPOSITORY_NAME: ${{ inputs.repository_name }}
