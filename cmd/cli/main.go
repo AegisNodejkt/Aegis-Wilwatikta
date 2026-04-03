@@ -234,7 +234,7 @@ func getModelForProvider(p string, config Config, tier string) string {
 	}
 	if p == "openrouter" {
 		if tier == "pro" {
-			return "meta-llama/llama-3.1-8b-instruct:free"
+			return "qwen/qwen3.6-plus:free"
 		}
 		return config.OpenRouterModel
 	}
