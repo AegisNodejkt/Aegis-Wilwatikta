@@ -81,34 +81,59 @@ func (a *Adapter) CreateProvider(ctx context.Context, providerType string) (AIPr
 }
 
 // GetModelForProvider returns the correct model string given the provider tier
-func (a *Adapter) GetModelForProvider(p string, tier string) string {
+func (a *Adapter) GetModelForProvider(ctx context.Context, provider AIProvider, p string, tier string) string {
+	var targetModel string
 	switch p {
 	case "gemini":
 		if tier == "pro" {
-			return "gemini-2.5-flash"
+			targetModel = "gemini-2.5-flash"
+		} else {
+			targetModel = a.Config.GeminiModel
 		}
-		return a.Config.GeminiModel
 	case "openai":
 		if tier == "pro" {
-			return "gpt-4o"
+			targetModel = "gpt-4o"
+		} else {
+			targetModel = a.Config.OpenAIModel
 		}
-		return a.Config.OpenAIModel
 	case "glm":
 		if tier == "pro" {
-			return "glm-4"
+			targetModel = "glm-4"
+		} else {
+			targetModel = a.Config.GLMModel
 		}
-		return a.Config.GLMModel
 	case "openrouter":
 		if tier == "pro" {
-			return "qwen/qwen3.6-plus:free"
+			targetModel = "qwen/qwen3.6-plus:free"
+		} else {
+			targetModel = a.Config.OpenRouterModel
 		}
-		return a.Config.OpenRouterModel
 	case "qwen":
 		if tier == "pro" {
-			return "qwen-plus" // qwen-plus supports up to 131,072 tokens, while qwen-max is limited to 30,720 tokens context.
+			targetModel = "qwen-plus" // qwen-plus supports up to 131,072 tokens, while qwen-max is limited to 30,720 tokens context.
+		} else {
+			targetModel = a.Config.QwenModel
 		}
-		return a.Config.QwenModel
 	default:
 		return ""
 	}
+
+	if provider != nil {
+		available, err := provider.ListAvailableModels(ctx)
+		if err == nil && len(available) > 0 {
+			found := false
+			for _, m := range available {
+				if m == targetModel {
+					found = true
+					break
+				}
+			}
+			if !found {
+				log.Printf("Warning: Target model %s was not found in the provider's list of available models. Falling back to first available model: %s", targetModel, available[0])
+				return available[0]
+			}
+		}
+	}
+	
+	return targetModel
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sort"
 	"time"
 )
 
@@ -44,8 +45,9 @@ type LLMResponse struct {
 type ProviderWithLimiter struct {
 	Provider    AIProvider
 	Limiter     RateLimiter
-	Config      ProviderConfig
-	IsAvailable bool
+	Config         ProviderConfig
+	IsAvailable    bool
+	AvailableAfter time.Time
 }
 
 type ProviderManager struct {
@@ -74,12 +76,10 @@ func NewProviderManager(
 	pm.fallbackOrder = make([]int, len(providers))
 	for i := range providers {
 		pm.fallbackOrder[i] = i
-		for j := 0; j < i; j++ {
-			if providers[i].Config.Priority < providers[pm.fallbackOrder[j]].Config.Priority {
-				pm.fallbackOrder[i], pm.fallbackOrder[j] = pm.fallbackOrder[j], pm.fallbackOrder[i]
-			}
-		}
 	}
+	sort.SliceStable(pm.fallbackOrder, func(i, j int) bool {
+		return providers[pm.fallbackOrder[i]].Config.Priority > providers[pm.fallbackOrder[j]].Config.Priority
+	})
 
 	if cache == nil {
 		pm.cache = NewInMemoryCache()
@@ -122,23 +122,33 @@ func (pm *ProviderManager) SendMessageFull(ctx context.Context, req LLMRequest) 
 		return nil, ErrBudgetExceeded
 	}
 
-	cacheKey := GenerateCacheKey(req.SystemPrompt, req.UserPrompt, req.Model)
-	if pm.cache != nil {
-		cached, err := pm.cache.Get(ctx, cacheKey)
-		if err == nil && cached != nil {
-			return &LLMResponse{
-				Content:  cached.Response,
-				Provider: cached.Provider,
-				Model:    cached.Model,
-				CacheHit: true,
-			}, nil
-		}
-	}
-
 	for _, idx := range pm.fallbackOrder {
 		pw := pm.providers[idx]
+
 		if !pw.IsAvailable {
-			continue
+			if time.Now().After(pw.AvailableAfter) {
+				pw.IsAvailable = true
+			} else {
+				continue
+			}
+		}
+
+		targetModel := pw.Config.Model
+		if targetModel == "" {
+			targetModel = req.Model
+		}
+
+		cacheKey := GenerateCacheKey(req.SystemPrompt, req.UserPrompt, targetModel, pw.Config.Name)
+		if pm.cache != nil {
+			cached, err := pm.cache.Get(ctx, cacheKey)
+			if err == nil && cached != nil {
+				return &LLMResponse{
+					Content:  cached.Response,
+					Provider: cached.Provider,
+					Model:    cached.Model,
+					CacheHit: true,
+				}, nil
+			}
 		}
 
 		if pw.Limiter != nil {
@@ -149,11 +159,12 @@ func (pm *ProviderManager) SendMessageFull(ctx context.Context, req LLMRequest) 
 		}
 
 		start := time.Now()
-		content, err := pw.Provider.SendMessage(ctx, req.SystemPrompt, req.UserPrompt, req.Model)
+		content, err := pw.Provider.SendMessage(ctx, req.SystemPrompt, req.UserPrompt, targetModel)
 		latency := time.Since(start).Milliseconds()
 
 		if err != nil {
 			pw.IsAvailable = false
+			pw.AvailableAfter = time.Now().Add(60 * time.Second)
 			lastErr = err
 			continue
 		}
@@ -163,7 +174,7 @@ func (pm *ProviderManager) SendMessageFull(ctx context.Context, req LLMRequest) 
 
 		costRecord := CostRecord{
 			Provider:     pw.Config.Name,
-			Model:        req.Model,
+			Model:        targetModel,
 			Timestamp:    time.Now(),
 			InputTokens:  estimatedTokens,
 			OutputTokens: outputTokens,
@@ -181,7 +192,7 @@ func (pm *ProviderManager) SendMessageFull(ctx context.Context, req LLMRequest) 
 				Response:   content,
 				TokensUsed: estimatedTokens + outputTokens,
 				CachedAt:   time.Now(),
-				Model:      req.Model,
+				Model:      targetModel,
 				Provider:   pw.Config.Name,
 			}, time.Hour)
 		}
@@ -189,7 +200,7 @@ func (pm *ProviderManager) SendMessageFull(ctx context.Context, req LLMRequest) 
 		return &LLMResponse{
 			Content:      content,
 			Provider:     pw.Config.Name,
-			Model:        req.Model,
+			Model:        targetModel,
 			InputTokens:  estimatedTokens,
 			OutputTokens: outputTokens,
 			CostCents:    costCents,

@@ -26,6 +26,10 @@ func (m *mockProvider) Name() string {
 	return m.name
 }
 
+func (m *mockProvider) ListAvailableModels(ctx context.Context) ([]string, error) {
+	return []string{"model1", "model2"}, nil
+}
+
 func TestRateLimiter_Allow(t *testing.T) {
 	limiter := NewTokenBucketLimiter(2, 1)
 	defer limiter.Stop()
@@ -59,7 +63,7 @@ func TestInMemoryCache_GetSet(t *testing.T) {
 	cache := NewInMemoryCache()
 	ctx := context.Background()
 
-	key := GenerateCacheKey("system", "user", "model")
+	key := GenerateCacheKey("system", "user", "model", "test")
 	entry := &CacheEntry{
 		Response: "test response",
 		Model:    "model",
@@ -87,7 +91,7 @@ func TestInMemoryCache_TTL(t *testing.T) {
 	cache := NewInMemoryCache()
 	ctx := context.Background()
 
-	key := GenerateCacheKey("system", "user", "model")
+	key := GenerateCacheKey("system", "user", "model", "test")
 	entry := &CacheEntry{
 		Response: "test response",
 		Model:    "model",
@@ -275,7 +279,7 @@ func TestProviderManager_CacheHit(t *testing.T) {
 	mock := &mockProvider{name: "mock", response: "response from api"}
 
 	cache := NewInMemoryCache()
-	cacheKey := GenerateCacheKey("system", "user", "model")
+	cacheKey := GenerateCacheKey("system", "user", "model", "mock")
 	_ = cache.Set(ctx, cacheKey, &CacheEntry{
 		Response: "cached response",
 		Model:    "model",
@@ -377,9 +381,9 @@ func TestProviderManager_AllProvidersFail(t *testing.T) {
 }
 
 func TestGenerateCacheKey(t *testing.T) {
-	key1 := GenerateCacheKey("system", "user", "model")
-	key2 := GenerateCacheKey("system", "user", "model")
-	key3 := GenerateCacheKey("system", "different", "model")
+	key1 := GenerateCacheKey("system", "user", "model", "prov")
+	key2 := GenerateCacheKey("system", "user", "model", "prov")
+	key3 := GenerateCacheKey("system", "different", "model", "prov")
 
 	if key1 != key2 {
 		t.Error("Same inputs should produce same cache keys")

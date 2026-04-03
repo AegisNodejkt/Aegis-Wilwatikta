@@ -187,7 +187,16 @@ func (e *ReviewerEngine) RunPipelinedReview(ctx context.Context, owner, repo str
 func (e *ReviewerEngine) RunReviewWithGracefulDegradation(ctx context.Context, owner, repo string, prNumber int) (*PipelineResult, error) {
 	result, err := e.RunPipelinedReview(ctx, owner, repo, prNumber)
 	if err != nil {
-		fmt.Printf("[Pipeline] Error during review: %v. Attempting graceful degradation...\n", err)
+		fmt.Printf("[Pipeline] FATAL: Pipelined Review encountered critical error:\n")
+		fmt.Printf("   -> %v\n", err)
+		
+		// To prevent duplicate posting, check if the error was purely a posting failure or post-diplomat partial output
+		if result != nil && result.PartialOutput && result.GetFinalReview() != nil {
+			fmt.Println("[Pipeline] Partial output successfully generated before crash. Skipping legacy fallback to avoid duplicate PR comment pollution.")
+			return result, err
+		}
+
+		fmt.Println("[Pipeline] Attempting graceful degradation strategy (Legacy Review)...")
 
 		// Try legacy approach as fallback
 		legacyErr := e.RunReview(ctx, owner, repo, prNumber)

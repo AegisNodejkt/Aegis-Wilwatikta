@@ -73,6 +73,18 @@ func main() {
 		providerType = config.Provider
 	}
 
+	validProviders := []string{"gemini", "openai", "glm", "openrouter", "qwen"}
+	isValidProvider := false
+	for _, p := range validProviders {
+		if providerType == p {
+			isValidProvider = true
+			break
+		}
+	}
+	if !isValidProvider {
+		log.Fatalf("Critical Configuration Error: Unsupported provider '%s' specified. Valid options are: gemini, openai, glm, openrouter, qwen.", providerType)
+	}
+
 	adapterConfig := provider.AdapterConfig{
 		GeminiModel:     config.GeminiModel,
 		OpenAIModel:     config.OpenAIModel,
@@ -90,15 +102,15 @@ func main() {
 	// 4. Initialize Agents
 	scoutModel := os.Getenv("SCOUT_MODEL")
 	if scoutModel == "" {
-		scoutModel = aiAdapter.GetModelForProvider(providerType, "flash")
+		scoutModel = aiAdapter.GetModelForProvider(ctx, aiProvider, providerType, "flash")
 	}
 	archModel := os.Getenv("ARCHITECT_MODEL")
 	if archModel == "" {
-		archModel = aiAdapter.GetModelForProvider(providerType, "pro")
+		archModel = aiAdapter.GetModelForProvider(ctx, aiProvider, providerType, "pro")
 	}
 	dipModel := os.Getenv("DIPLOMAT_MODEL")
 	if dipModel == "" {
-		dipModel = aiAdapter.GetModelForProvider(providerType, "flash")
+		dipModel = aiAdapter.GetModelForProvider(ctx, aiProvider, providerType, "flash")
 	}
 
 	var graphStore store.GraphStore

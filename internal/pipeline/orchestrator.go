@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -109,9 +110,21 @@ func (o *PipelineOrchestrator) Execute(ctx context.Context, agents map[AgentName
 
 	if architectResult.Error != nil && !architectResult.Skipped {
 		o.logger.Error("Architect agent failed: %v", architectResult.Error)
-		result.Errors = append(result.Errors, fmt.Errorf("architect: %w", architectResult.Error))
+		errStr := architectResult.Error.Error()
+		
+		isTransient := false
+		if containsAny(errStr, []string{"deadline", "timeout", "rate limit", "429", "503"}) {
+			isTransient = true
+			result.Errors = append(result.Errors, fmt.Errorf("architect (transient): %w", architectResult.Error))
+		} else {
+			result.Errors = append(result.Errors, fmt.Errorf("architect (permanent): %w", architectResult.Error))
+		}
+
 		// Architect failure is critical - cannot proceed without review
-		return result, fmt.Errorf("architect review failed: %w", architectResult.Error)
+		if isTransient {
+			return result, fmt.Errorf("architect review failed due to transient infrastructure issue: %w", architectResult.Error)
+		}
+		return result, fmt.Errorf("architect review failed due to permanent logic/model error: %w", architectResult.Error)
 	}
 
 	// Prepare Diplomat input
@@ -283,4 +296,13 @@ type ArchitectInput struct {
 type DiplomatInput struct {
 	RawReview     string
 	ImpactReports []*domain.ImpactReport
+}
+
+func containsAny(s string, sub []string) bool {
+	for _, v := range sub {
+		if strings.Contains(strings.ToLower(s), v) {
+			return true
+		}
+	}
+	return false
 }

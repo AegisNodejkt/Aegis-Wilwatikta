@@ -67,10 +67,11 @@ func (c *InMemoryCache) Clear(ctx context.Context) error {
 	return nil
 }
 
-func GenerateCacheKey(systemPrompt, userPrompt, model string) string {
+func GenerateCacheKey(systemPrompt, userPrompt, model, provider string) string {
 	h := sha256.New()
 	h.Write([]byte(systemPrompt))
 	h.Write([]byte(userPrompt))
 	h.Write([]byte(model))
+	h.Write([]byte(provider))
 	return hex.EncodeToString(h.Sum(nil))
 }

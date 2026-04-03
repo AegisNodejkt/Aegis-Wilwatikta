@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/google/generative-ai-go/genai"
 	"google.golang.org/api/iterator"
@@ -87,7 +88,7 @@ func (p *GeminiProvider) ListAvailableModels(ctx context.Context) ([]string, err
 			return nil, fmt.Errorf("failed to list models: %w", err)
 		}
 		// Extracting just the short name (e.g., "gemini-1.5-flash")
-		modelNames = append(modelNames, m.Name)
+		modelNames = append(modelNames, strings.TrimPrefix(m.Name, "models/"))
 	}
 	return modelNames, nil
 }
