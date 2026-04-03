@@ -27,6 +27,15 @@ jobs:
           neo4j_user: ${{ secrets.NEO4J_USER }}
           neo4j_pass: ${{ secrets.NEO4J_PASS }}
           neo4j_database: ${{ secrets.NEO4J_DATABASE }}
+          repository_name: ${{ github.repository }}
+          pr_number: ${{ github.event.pull_request.number }}
+          gemini_api_key: ${{ secrets.GEMINI_API_KEY }}
+          scout_model: ${{ secrets.SCOUT_MODEL }}
+          arch_model: ${{ secrets.ARCHITECT_MODEL }}
+          dip_model: ${{ secrets.DIPLOMAT_MODEL }}
+          glm_api_key: ${{ secrets.GLM_API_KEY }}
+          openrouter_api_key: ${{ secrets.OPENROUTER_API_KEY }}
+          qwen_api_key: ${{ secrets.QWEN_API_KEY }}
 
       # --- TAHAP 2: INDEXER (Hanya saat Merge/Push ke Main) ---
       - name: Run Code Indexer
@@ -42,3 +51,4 @@ jobs:
           PROVIDER: ${{ secrets.PROVIDER }}
           EMBEDDING_PROVIDER: ${{ secrets.PROVIDER }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          QWEN_API_KEY: ${{ secrets.QWEN_API_KEY }}

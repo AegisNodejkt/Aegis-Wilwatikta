@@ -16,8 +16,17 @@ inputs:
   openai_api_key:
     description: 'API key for OpenAI'
     required: false
+  glm_api_key:
+    description: 'API key for GLM (Zhipu AI)'
+    required: false
+  openrouter_api_key:
+    description: 'API key for OpenRouter'
+    required: false
   gemini_api_key:
     description: 'API key for Gemini'
+    required: false
+  qwen_api_key:
+    description: 'API key for Qwen'
     required: false
   neo4j_uri:
     description: 'Neo4j connection URI'
@@ -31,6 +40,24 @@ inputs:
   neo4j_database:
     description: 'Neo4j database name'
     required: false
+  repository_name:
+    description: 'Repository name (owner/repo)'
+    required: false
+  pr_number:
+    description: 'Pull Request number'
+    required: false
+  scout_model:
+    description: 'Scout model name'
+    required: false
+  arch_model:
+    description: 'Architect model name'
+    required: false
+  dip_model:
+    description: 'Diplomat model name'
+    required: false
+  embedding_provider:
+    description: 'Embedding provider name'
+    required: false
 
 runs:
   using: 'docker'
@@ -39,11 +66,18 @@ runs:
     GITHUB_TOKEN: ${{ inputs.github_token }}
     GEMINI_API_KEY: ${{ inputs.gemini_api_key }}
     OPENAI_API_KEY: ${{ inputs.openai_api_key }}
+    GLM_API_KEY: ${{ inputs.glm_api_key }}
+    OPENROUTER_API_KEY: ${{ inputs.openrouter_api_key }}
     PROVIDER: ${{ inputs.provider }}
     PLATFORM: ${{ inputs.platform }}
-    REPOSITORY_NAME: ${{ github.repository }}
-    PR_NUMBER: ${{ github.event.pull_request.number }}
+    REPOSITORY_NAME: ${{ inputs.repository_name }}
+    PR_NUMBER: ${{ inputs.pr_number }}
     NEO4J_URI: ${{ inputs.neo4j_uri }}
     NEO4J_USER: ${{ inputs.neo4j_user }}
     NEO4J_PASS: ${{ inputs.neo4j_pass }}
     NEO4J_DATABASE: ${{ inputs.neo4j_database }}
+    SCOUT_MODEL: ${{ inputs.scout_model }}
+    ARCH_MODEL: ${{ inputs.arch_model }}
+    DIP_MODEL: ${{ inputs.dip_model }}
+    QWEN_API_KEY: ${{ inputs.qwen_api_key }}
+    

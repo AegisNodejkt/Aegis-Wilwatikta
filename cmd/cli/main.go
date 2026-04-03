@@ -17,13 +17,16 @@ import (
 )
 
 type Config struct {
-	Provider    string   `yaml:"provider"`
-	ProjectID   string   `yaml:"project_id"`
-	GeminiModel string   `yaml:"gemini_model"`
-	OpenAIModel string   `yaml:"openai_model"`
-	BaseBranch  string   `yaml:"base_branch"`
-	IgnorePaths []string `yaml:"ignore_paths"`
-	RAG         struct {
+	Provider        string   `yaml:"provider"`
+	ProjectID       string   `yaml:"project_id"`
+	GeminiModel     string   `yaml:"gemini_model"`
+	OpenAIModel     string   `yaml:"openai_model"`
+	GLMModel        string   `yaml:"glm_model"`
+	OpenRouterModel string   `yaml:"openrouter_model"`
+	QwenModel       string   `yaml:"qwen_model"`
+	BaseBranch      string   `yaml:"base_branch"`
+	IgnorePaths     []string `yaml:"ignore_paths"`
+	RAG             struct {
 		Enabled           bool   `yaml:"enabled"`
 		GraphDB           string `yaml:"graph_db"`
 		ConnectionURL     string `yaml:"connection_url"`
@@ -65,44 +68,49 @@ func main() {
 	}
 
 	// 3. Initialize AI Provider
-	var aiProvider provider.AIProvider
 	providerType := os.Getenv("PROVIDER")
 	if providerType == "" {
 		providerType = config.Provider
 	}
 
-	switch providerType {
-	case "gemini":
-		apiKey := os.Getenv("GEMINI_API_KEY")
-		if apiKey == "" {
-			log.Fatal("GEMINI_API_KEY is required for gemini provider")
+	validProviders := []string{"gemini", "openai", "glm", "openrouter", "qwen"}
+	isValidProvider := false
+	for _, p := range validProviders {
+		if providerType == p {
+			isValidProvider = true
+			break
 		}
-		aiProvider, err = provider.NewGeminiProvider(ctx, apiKey)
-		if err != nil {
-			log.Fatalf("failed to initialize gemini: %v", err)
-		}
-	case "openai":
-		apiKey := os.Getenv("OPENAI_API_KEY")
-		if apiKey == "" {
-			log.Fatal("OPENAI_API_KEY is required for openai provider")
-		}
-		aiProvider = provider.NewOpenAIProvider(apiKey)
-	default:
-		log.Fatalf("unsupported provider: %s", providerType)
+	}
+	if !isValidProvider {
+		log.Fatalf("Critical Configuration Error: Unsupported provider '%s' specified. Valid options are: gemini, openai, glm, openrouter, qwen.", providerType)
+	}
+
+	adapterConfig := provider.AdapterConfig{
+		GeminiModel:     config.GeminiModel,
+		OpenAIModel:     config.OpenAIModel,
+		GLMModel:        config.GLMModel,
+		OpenRouterModel: config.OpenRouterModel,
+		QwenModel:       config.QwenModel,
+	}
+	aiAdapter := provider.NewAdapter(adapterConfig)
+
+	aiProvider, err := aiAdapter.CreateProvider(ctx, providerType)
+	if err != nil {
+		log.Fatalf("failed to initialize provider: %v", err)
 	}
 
 	// 4. Initialize Agents
 	scoutModel := os.Getenv("SCOUT_MODEL")
 	if scoutModel == "" {
-		scoutModel = getModelForProvider(providerType, config, "flash")
+		scoutModel = aiAdapter.GetModelForProvider(ctx, aiProvider, providerType, "flash")
 	}
 	archModel := os.Getenv("ARCHITECT_MODEL")
 	if archModel == "" {
-		archModel = getModelForProvider(providerType, config, "pro")
+		archModel = aiAdapter.GetModelForProvider(ctx, aiProvider, providerType, "pro")
 	}
 	dipModel := os.Getenv("DIPLOMAT_MODEL")
 	if dipModel == "" {
-		dipModel = getModelForProvider(providerType, config, "flash")
+		dipModel = aiAdapter.GetModelForProvider(ctx, aiProvider, providerType, "flash")
 	}
 
 	var graphStore store.GraphStore
@@ -157,21 +165,29 @@ func main() {
 	dip := agents.NewDiplomat(aiProvider, dipModel)
 
 	// 5. Initialize and Run Engine
-	reviewer := engine.NewReviewerEngine(plat, scout, arch, dip)
+	pipelineConfig := engine.DefaultPipelineConfig()
+	reviewer := engine.NewPipelinedReviewerEngine(plat, scout, arch, dip, pipelineConfig)
 
 	owner, repo := parseRepo(repoName)
-	err = reviewer.RunReview(ctx, owner, repo, prNumber)
+	result, err := reviewer.RunReviewWithGracefulDegradation(ctx, owner, repo, prNumber)
 	if err != nil {
 		log.Fatalf("review failed: %v", err)
+	}
+
+	if result != nil && len(result.Errors) > 0 {
+		log.Printf("Warning: Pipeline encountered errors (fallback might have been used): %v", result.Errors)
 	}
 }
 
 func loadConfig() (Config, error) {
 	config := Config{
-		Provider:    "gemini",
-		GeminiModel: "gemini-1.5-flash",
-		OpenAIModel: "gpt-4o-mini",
-		BaseBranch:  "main",
+		Provider:        "gemini",
+		GeminiModel:     "gemini-2.5-flash-lite",
+		OpenAIModel:     "gpt-4o-mini",
+		GLMModel:        "glm-4-flash",
+		OpenRouterModel: "qwen/qwen3.6-plus:free",
+		QwenModel:       "qwen-turbo",
+		BaseBranch:      "main",
 	}
 
 	f, err := os.Open(".ai-reviewer.yaml")
@@ -187,21 +203,7 @@ func loadConfig() (Config, error) {
 	return config, nil
 }
 
-func getModelForProvider(p string, config Config, tier string) string {
-	if p == "gemini" {
-		if tier == "pro" {
-			return "gemini-1.5-pro"
-		}
-		return config.GeminiModel
-	}
-	if p == "openai" {
-		if tier == "pro" {
-			return "gpt-4o"
-		}
-		return config.OpenAIModel
-	}
-	return ""
-}
+
 
 func parseRepo(repoName string) (string, string) {
 	if repoName == "" {

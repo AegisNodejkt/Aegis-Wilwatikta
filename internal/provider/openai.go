@@ -8,16 +8,31 @@ import (
 )
 
 type OpenAIProvider struct {
-	client *openai.Client
+	client  *openai.Client
+	limiter RateLimiter
 }
 
 func NewOpenAIProvider(apiKey string) *OpenAIProvider {
 	return &OpenAIProvider{
-		client: openai.NewClient(apiKey),
+		client:  openai.NewClient(apiKey),
+		limiter: NewOpenAIRateLimiter(),
+	}
+}
+
+func NewOpenAIProviderWithLimiter(apiKey string, limiter RateLimiter) *OpenAIProvider {
+	return &OpenAIProvider{
+		client:  openai.NewClient(apiKey),
+		limiter: limiter,
 	}
 }
 
 func (p *OpenAIProvider) SendMessage(ctx context.Context, systemPrompt string, userPrompt string, modelName string) (string, error) {
+	if p.limiter != nil {
+		if err := p.limiter.Wait(ctx); err != nil {
+			return "", fmt.Errorf("rate limit wait failed: %w", err)
+		}
+	}
+
 	resp, err := p.client.CreateChatCompletion(
 		ctx,
 		openai.ChatCompletionRequest{
@@ -48,4 +63,12 @@ func (p *OpenAIProvider) SendMessage(ctx context.Context, systemPrompt string, u
 
 func (p *OpenAIProvider) Name() string {
 	return "openai"
+}
+
+func (p *OpenAIProvider) GetTokenUsage(resp *openai.ChatCompletionResponse) (int, int) {
+	return resp.Usage.PromptTokens, resp.Usage.CompletionTokens
+}
+
+func (p *OpenAIProvider) ListAvailableModels(ctx context.Context) ([]string, error) {
+	return nil, fmt.Errorf("not implemented")
 }
