@@ -25,6 +25,9 @@ inputs:
   gemini_api_key:
     description: 'API key for Gemini'
     required: false
+  qwen_api_key:
+    description: 'API key for Qwen'
+    required: false
   neo4j_uri:
     description: 'Neo4j connection URI'
     required: false
@@ -76,4 +79,5 @@ runs:
     SCOUT_MODEL: ${{ inputs.scout_model }}
     ARCH_MODEL: ${{ inputs.arch_model }}
     DIP_MODEL: ${{ inputs.dip_model }}
+    QWEN_API_KEY: ${{ inputs.qwen_api_key }}
     

@@ -23,6 +23,7 @@ type Config struct {
 	OpenAIModel     string   `yaml:"openai_model"`
 	GLMModel        string   `yaml:"glm_model"`
 	OpenRouterModel string   `yaml:"openrouter_model"`
+	QwenModel       string   `yaml:"qwen_model"`
 	BaseBranch      string   `yaml:"base_branch"`
 	IgnorePaths     []string `yaml:"ignore_paths"`
 	RAG             struct {
@@ -67,61 +68,37 @@ func main() {
 	}
 
 	// 3. Initialize AI Provider
-	var aiProvider provider.AIProvider
 	providerType := os.Getenv("PROVIDER")
 	if providerType == "" {
 		providerType = config.Provider
 	}
 
-	switch providerType {
-	case "gemini":
-		apiKey := os.Getenv("GEMINI_API_KEY")
-		if apiKey == "" {
-			log.Fatal("GEMINI_API_KEY is required for gemini provider")
-		}
-		aiProvider, err = provider.NewGeminiProvider(ctx, apiKey)
-		if err != nil {
-			log.Fatalf("failed to initialize gemini: %v", err)
-		}
-		models, err := aiProvider.ListAvailableModels(ctx)
-		if err != nil {
-			log.Fatalf("failed to list models: %v", err)
-		}
-		log.Printf("Available models: %v", models)
-	case "openai":
-		apiKey := os.Getenv("OPENAI_API_KEY")
-		if apiKey == "" {
-			log.Fatal("OPENAI_API_KEY is required for openai provider")
-		}
-		aiProvider = provider.NewOpenAIProvider(apiKey)
-	case "glm":
-		apiKey := os.Getenv("GLM_API_KEY")
-		if apiKey == "" {
-			log.Fatal("GLM_API_KEY is required for glm provider")
-		}
-		aiProvider = provider.NewGLMProvider(apiKey)
-	case "openrouter":
-		apiKey := os.Getenv("OPENROUTER_API_KEY")
-		if apiKey == "" {
-			log.Fatal("OPENROUTER_API_KEY is required for openrouter provider")
-		}
-		aiProvider = provider.NewOpenRouterProvider(apiKey)
-	default:
-		log.Fatalf("unsupported provider: %s", providerType)
+	adapterConfig := provider.AdapterConfig{
+		GeminiModel:     config.GeminiModel,
+		OpenAIModel:     config.OpenAIModel,
+		GLMModel:        config.GLMModel,
+		OpenRouterModel: config.OpenRouterModel,
+		QwenModel:       config.QwenModel,
+	}
+	aiAdapter := provider.NewAdapter(adapterConfig)
+
+	aiProvider, err := aiAdapter.CreateProvider(ctx, providerType)
+	if err != nil {
+		log.Fatalf("failed to initialize provider: %v", err)
 	}
 
 	// 4. Initialize Agents
 	scoutModel := os.Getenv("SCOUT_MODEL")
 	if scoutModel == "" {
-		scoutModel = getModelForProvider(providerType, config, "flash")
+		scoutModel = aiAdapter.GetModelForProvider(providerType, "flash")
 	}
 	archModel := os.Getenv("ARCHITECT_MODEL")
 	if archModel == "" {
-		archModel = getModelForProvider(providerType, config, "pro")
+		archModel = aiAdapter.GetModelForProvider(providerType, "pro")
 	}
 	dipModel := os.Getenv("DIPLOMAT_MODEL")
 	if dipModel == "" {
-		dipModel = getModelForProvider(providerType, config, "flash")
+		dipModel = aiAdapter.GetModelForProvider(providerType, "flash")
 	}
 
 	var graphStore store.GraphStore
@@ -197,6 +174,7 @@ func loadConfig() (Config, error) {
 		OpenAIModel:     "gpt-4o-mini",
 		GLMModel:        "glm-4-flash",
 		OpenRouterModel: "qwen/qwen3.6-plus:free",
+		QwenModel:       "qwen-turbo",
 		BaseBranch:      "main",
 	}
 
@@ -213,33 +191,7 @@ func loadConfig() (Config, error) {
 	return config, nil
 }
 
-func getModelForProvider(p string, config Config, tier string) string {
-	if p == "gemini" {
-		if tier == "pro" {
-			return "gemini-2.5-flash"
-		}
-		return config.GeminiModel
-	}
-	if p == "openai" {
-		if tier == "pro" {
-			return "gpt-4o"
-		}
-		return config.OpenAIModel
-	}
-	if p == "glm" {
-		if tier == "pro" {
-			return "glm-4"
-		}
-		return config.GLMModel
-	}
-	if p == "openrouter" {
-		if tier == "pro" {
-			return "qwen/qwen3.6-plus:free"
-		}
-		return config.OpenRouterModel
-	}
-	return ""
-}
+
 
 func parseRepo(repoName string) (string, string) {
 	if repoName == "" {
